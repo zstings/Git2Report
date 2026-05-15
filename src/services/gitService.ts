@@ -34,6 +34,9 @@ export class GitService {
     return await path.join(homeDir, ".git_projects_list.txt");
   }
 
+  private readonly HOOK_START_MARKER = "# === GIT2REPORT HOOK START ===";
+  private readonly HOOK_END_MARKER = "# === GIT2REPORT HOOK END ===";
+
   async initGitHooks(): Promise<{ success: boolean; message: string }> {
     try {
       const homeDir = await this.getHomeDir();
@@ -44,25 +47,35 @@ export class GitService {
       await shell.exec("git", ["config", "--global", "core.hooksPath", configDir]);
 
       const postCommitPath = await path.join(configDir, "post-commit");
-
       const hookContent = git_commit_history;
+      const wrappedHookContent = `${this.HOOK_START_MARKER}\n${hookContent}\n${this.HOOK_END_MARKER}\n`;
 
       const exists = await fs.exists(postCommitPath);
-      const shouldWrite = true;
 
       if (exists) {
-        const existingContent = await fs.readFile(postCommitPath, {
+        let existingContent = await fs.readFile(postCommitPath, {
           encoding: "utf8",
         });
-        if (existingContent === hookContent) {
-          return {
-            success: true,
-            message: "Git 钩子已正确配置，无需更新",
-          };
-        }
-      }
 
-      await fs.writeFile(postCommitPath, hookContent);
+        // 检查是否已经有我们的标记
+        const hasStartMarker = existingContent.includes(this.HOOK_START_MARKER);
+        const hasEndMarker = existingContent.includes(this.HOOK_END_MARKER);
+
+        if (hasStartMarker && hasEndMarker) {
+          // 替换标记之间的内容
+          const startIndex = existingContent.indexOf(this.HOOK_START_MARKER);
+          const endIndex = existingContent.indexOf(this.HOOK_END_MARKER) + this.HOOK_END_MARKER.length;
+          existingContent = existingContent.substring(0, startIndex) + wrappedHookContent + existingContent.substring(endIndex);
+        } else {
+          // 追加到文件末尾
+          existingContent = existingContent.trim() + "\n" + wrappedHookContent;
+        }
+
+        await fs.writeFile(postCommitPath, existingContent);
+      } else {
+        // 文件不存在，创建新文件
+        await fs.writeFile(postCommitPath, wrappedHookContent);
+      }
 
       try {
         await shell.exec("chmod", ["+x", postCommitPath]);
