@@ -39,6 +39,12 @@ export class GitService {
 
   async initGitHooks(reportPath?: string): Promise<{ success: boolean; message: string }> {
     try {
+      // 确保报告路径存在且创建 original 目录
+      if (reportPath) {
+        const originalDir = await path.join(reportPath, "original");
+        await fs.mkdir(originalDir, { recursive: true });
+      }
+
       const homeDir = await this.getHomeDir();
       const configDir = await path.join(homeDir, ".config", "git", "hooks");
 
