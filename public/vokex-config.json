@@ -13,6 +13,5 @@
     "resizable": true
   },
   "verbose": true,
-  "devtools": true,
-  "dev_url": "http://localhost:5175"
+  "devtools": false
 }
