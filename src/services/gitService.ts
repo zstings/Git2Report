@@ -196,6 +196,7 @@ fi
     let allCommits: GitCommit[] = [];
 
     for (const project of projects) {
+      if (!project.remoteUrl.includes("codeup.aliyun.com")) continue;
       const commits = await this.getCommits(project.localPath, since, until);
       allCommits = allCommits.concat(commits);
     }
