@@ -40,12 +40,7 @@ export class GitService {
 
       await fs.mkdir(configDir, { recursive: true });
 
-      await shell.exec("git", [
-        "config",
-        "--global",
-        "core.hooksPath",
-        configDir,
-      ]);
+      await shell.exec("git", ["config", "--global", "core.hooksPath", configDir]);
 
       const postCommitPath = await path.join(configDir, "post-commit");
 
@@ -56,14 +51,14 @@ PROJECT_PATH=$(git rev-parse --show-toplevel 2>/dev/null)
 
 if [ -n "$PROJECT_PATH" ]; then
     touch "$RECORD_FILE"
-    
+
     REMOTE_URL=$(git config --get remote.origin.url 2>/dev/null)
     if [ -z "$REMOTE_URL" ]; then
         REMOTE_URL="none"
     fi
-    
+
     NEW_ENTRY="$PROJECT_PATH | $REMOTE_URL"
-    
+
     if ! grep -Fq "$PROJECT_PATH |" "$RECORD_FILE" 2>/dev/null; then
         echo "$NEW_ENTRY" >> "$RECORD_FILE"
     else
@@ -77,7 +72,7 @@ fi
 `;
 
       const exists = await fs.exists(postCommitPath);
-      let shouldWrite = true;
+      const shouldWrite = true;
 
       if (exists) {
         const existingContent = await fs.readFile(postCommitPath, {
@@ -95,7 +90,7 @@ fi
 
       try {
         await shell.exec("chmod", ["+x", postCommitPath]);
-      } catch (e) {
+      } catch {
         console.log("Windows 系统不需要 chmod");
       }
 
@@ -126,7 +121,7 @@ fi
 
       const projects: GitProject[] = [];
       for (const line of lines) {
-        const parts = line.split(" | ");
+        const parts: any = line.split(" | ");
         if (parts.length >= 2) {
           projects.push({
             localPath: parts[0].trim(),
@@ -142,24 +137,23 @@ fi
     }
   }
 
-  async getCommits(
-    projectPath: string,
-    since: string,
-    until: string,
-  ): Promise<GitCommit[]> {
+  async getCommits(projectPath: string, since: string, until: string): Promise<GitCommit[]> {
     try {
       const projectName = await path.basename(projectPath);
 
       const format = "%H|%ad|%an|%s";
+      // alert(
+      //   JSON.stringify([
+      //     "log",
+      //     `--since=${since}`,
+      //     `--until=${until}`,
+      //     `--format=${format}`,
+      //     "--date=iso",
+      //   ]),
+      // );
       const result = await shell.exec(
         "git",
-        [
-          "log",
-          `--since=${since}`,
-          `--until=${until}`,
-          `--format=${format}`,
-          "--date=iso",
-        ],
+        ["log", `--since=${since}`, `--until=${until}`, `--format=${format}`, "--date=iso"],
         { cwd: projectPath },
       );
 
@@ -196,49 +190,54 @@ fi
     let allCommits: GitCommit[] = [];
 
     for (const project of projects) {
-      const commits = await this.getCommits(
-        project.localPath,
-        since,
-        until,
-      );
+      const commits = await this.getCommits(project.localPath, since, until);
       allCommits = allCommits.concat(commits);
     }
 
-    allCommits.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-    );
+    allCommits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return allCommits;
   }
 
-  getDateRange(type: "daily" | "weekly" | "monthly"): {
-    since: string;
-    until: string;
-    label: string;
-  } {
+  getDateRange(type: "daily" | "weekly" | "monthly"): [string, string] {
+    // 辅助：格式化 YYYY-MM-DD
+    const format = (date: Date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    };
+
     const now = new Date();
-    let since: Date;
-    let label: string;
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const date = now.getDate();
+
+    let since = null;
+    let until = null;
 
     if (type === "daily") {
-      since = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      label = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const today = new Date(year, month, date);
+      since = format(today);
+      until = format(today);
     } else if (type === "weekly") {
-      const dayOfWeek = now.getDay();
-      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-      since = new Date(now.getFullYear(), now.getMonth(), diff);
-      const end = new Date(since);
-      end.setDate(end.getDate() + 6);
-      label = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")} 至 ${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+      const dayOfWeek = now.getDay(); // 0 周日 ~ 6 周六
+      // 计算本周一（周一为 1，周日为 0，若周日则周一为今天-6）
+      const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(year, month, date - diffToMonday);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      since = format(monday);
+      until = format(sunday);
+    } else if (type === "monthly") {
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      since = format(firstDay);
+      until = format(lastDay);
     } else {
-      since = new Date(now.getFullYear(), now.getMonth(), 1);
-      label = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      throw new Error('Invalid type. Use "daily", "weekly", or "monthly".');
     }
 
-    return {
-      since: since.toISOString().split("T")[0],
-      until: now.toISOString().split("T")[0],
-      label,
-    };
+    return [since + " 00:00:00", until + " 23:59:59"];
   }
 }

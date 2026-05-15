@@ -59,13 +59,17 @@ async function loadProjects() {
   projects.value = await gitService.getProjects();
 }
 
-function generatePrompt(commits: GitCommit[], type: "daily" | "weekly" | "monthly", dateLabel: string): string {
+function generatePrompt(
+  commits: GitCommit[],
+  type: "daily" | "weekly" | "monthly",
+  dateLabel: string,
+): string {
   const commitsByProject: Record<string, GitCommit[]> = {};
   for (const commit of commits) {
     if (!commitsByProject[commit.projectName]) {
       commitsByProject[commit.projectName] = [];
     }
-    commitsByProject[commit.projectName].push(commit);
+    (commitsByProject as any)[commit.projectName].push(commit);
   }
 
   let commitsText = "";
@@ -104,9 +108,9 @@ async function generateReport(type: "daily" | "weekly" | "monthly") {
   prompt.value = "";
 
   try {
-    const { since, until, label } = gitService.getDateRange(type);
-    currentDateLabel.value = label;
-    
+    const [since, until] = gitService.getDateRange(type);
+    currentDateLabel.value = since;
+
     const allCommits = await gitService.getAllCommits(since, until);
 
     if (allCommits.length === 0) {
@@ -114,7 +118,7 @@ async function generateReport(type: "daily" | "weekly" | "monthly") {
       return;
     }
 
-    prompt.value = generatePrompt(allCommits, type, label);
+    prompt.value = generatePrompt(allCommits, type, `${since} 至 ${until}`);
     showResult.value = true;
   } catch (error) {
     await dialog.error({ title: "错误", message: `${error}` });
@@ -132,9 +136,9 @@ async function generateAIReport() {
 
   loading.value = true;
   try {
-    const { since, until, label } = gitService.getDateRange("daily");
+    const [since, until] = gitService.getDateRange("daily");
     const allCommits = await gitService.getAllCommits(since, until);
-    report.value = await aiService.generateReport(allCommits, "daily", currentDateLabel.value);
+    report.value = await aiService.generateReport(allCommits, "daily", `${since} 至 ${until}`);
   } catch (error) {
     await dialog.error({ title: "错误", message: `${error}` });
   } finally {
@@ -172,9 +176,13 @@ onMounted(() => {
         <h2>已记录的项目 ({{ projects.length }})</h2>
         <div v-if="projects.length > 0" class="projects-list">
           <div v-for="(project, index) in projects" :key="index" class="project-item">
-            <div class="project-name">{{ project.localPath.split("\\").pop()?.split("/").pop() }}</div>
+            <div class="project-name">
+              {{ project.localPath.split("\\").pop()?.split("/").pop() }}
+            </div>
             <div class="project-path">{{ project.localPath }}</div>
-            <div v-if="project.remoteUrl !== 'none'" class="project-remote">{{ project.remoteUrl }}</div>
+            <div v-if="project.remoteUrl !== 'none'" class="project-remote">
+              {{ project.remoteUrl }}
+            </div>
           </div>
         </div>
         <p v-else class="empty-text">暂无记录的项目，请先提交代码</p>
@@ -192,9 +200,7 @@ onMounted(() => {
           <button class="btn btn-warning" @click="generateReport('monthly')" :disabled="loading">
             🗓️ 生成月报
           </button>
-          <button class="btn btn-secondary" @click="showConfig = true">
-            ⚙️ 配置 AI
-          </button>
+          <button class="btn btn-secondary" @click="showConfig = true">⚙️ 配置 AI</button>
         </div>
       </div>
 
@@ -202,9 +208,9 @@ onMounted(() => {
         <div class="result-header">
           <h2>AI 提示词</h2>
         </div>
-        
+
         <div class="prompt-content">{{ prompt }}</div>
-        
+
         <div class="prompt-actions">
           <button class="btn btn-secondary" @click="copyPrompt">📋 复制提示词</button>
           <button class="btn btn-primary" @click="generateAIReport" :disabled="loading">
@@ -259,7 +265,8 @@ onMounted(() => {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   min-height: 100vh;
 }
