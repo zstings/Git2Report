@@ -141,7 +141,7 @@ fi
     try {
       const projectName = await path.basename(projectPath);
 
-      const format = "%H|%ad|%an|%s";
+      const format = "###提交：%H%n###作者：%an%n###日期：%ad%n###标题：%s%n###描述：%b%n";
       // alert(
       //   JSON.stringify([
       //     "log",
@@ -161,17 +161,23 @@ fi
         return [];
       }
 
-      const lines = result.stdout.split("\n").filter((line) => line.trim());
+      const lines = result.stdout
+        .split("\n\n")
+        .filter((line) => line.trim())
+        .map((line) =>
+          line
+            .replace("\n", "")
+            .split("###")
+            .filter((line) => line.trim()),
+        );
       const commits: GitCommit[] = [];
-
       for (const line of lines) {
-        const parts = line.split("|");
-        if (parts.length >= 4) {
+        if (line.length >= 4) {
           commits.push({
-            hash: parts[0],
-            date: parts[1],
-            author: parts[2],
-            message: parts.slice(3).join("|"),
+            hash: line[0],
+            date: line[2],
+            author: line[1],
+            message: line[3] + `(${line[4]})`,
             projectPath,
             projectName,
           });
