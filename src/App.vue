@@ -12,10 +12,11 @@ const aiService = AIService.getInstance();
 const isInitialized = ref(false);
 const loading = ref(false);
 const projects = ref<{ localPath: string; remoteUrl: string }[]>([]);
-const commits = ref<GitCommit[]>([]);
 const report = ref("");
+const prompt = ref("");
 const showConfig = ref(false);
-const showReport = ref(false);
+const showResult = ref(false);
+const currentDateLabel = ref("");
 
 const aiConfig = ref<AIConfig>({
   apiKey: "",
@@ -58,27 +59,92 @@ async function loadProjects() {
   projects.value = await gitService.getProjects();
 }
 
+function generatePrompt(commits: GitCommit[], type: "daily" | "weekly" | "monthly", dateLabel: string): string {
+  const commitsByProject: Record<string, GitCommit[]> = {};
+  for (const commit of commits) {
+    if (!commitsByProject[commit.projectName]) {
+      commitsByProject[commit.projectName] = [];
+    }
+    commitsByProject[commit.projectName].push(commit);
+  }
+
+  let commitsText = "";
+  for (const [projectName, projectCommits] of Object.entries(commitsByProject)) {
+    commitsText += `\n【${projectName}】\n`;
+    for (const commit of projectCommits) {
+      commitsText += `- ${commit.message} (${commit.author}, ${commit.date.split(" ")[0]})\n`;
+    }
+  }
+
+  const typeLabels: Record<string, string> = {
+    daily: "日报",
+    weekly: "周报",
+    monthly: "月报",
+  };
+
+  return `请根据以下 Git 提交记录，生成一份${typeLabels[type]}。
+
+日期: ${dateLabel}
+
+提交记录:
+${commitsText}
+
+要求:
+1. 格式清晰，易于阅读
+2. 按项目分组总结
+3. 突出重要的工作内容
+4. 语言简洁专业
+5. 使用 Markdown 格式`;
+}
+
 async function generateReport(type: "daily" | "weekly" | "monthly") {
   loading.value = true;
-  showReport.value = false;
+  showResult.value = false;
   report.value = "";
+  prompt.value = "";
 
   try {
     const { since, until, label } = gitService.getDateRange(type);
-    commits.value = await gitService.getAllCommits(since, until);
+    currentDateLabel.value = label;
+    
+    const allCommits = await gitService.getAllCommits(since, until);
 
-    if (commits.value.length === 0) {
+    if (allCommits.length === 0) {
       await dialog.info({ title: "提示", message: "该时间段暂无提交记录" });
       return;
     }
 
-    report.value = await aiService.generateReport(commits.value, type, label);
-    showReport.value = true;
+    prompt.value = generatePrompt(allCommits, type, label);
+    showResult.value = true;
   } catch (error) {
     await dialog.error({ title: "错误", message: `${error}` });
   } finally {
     loading.value = false;
   }
+}
+
+async function generateAIReport() {
+  if (!aiConfig.value.apiKey) {
+    await dialog.info({ title: "提示", message: "请先配置 AI 服务" });
+    showConfig.value = true;
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const { since, until, label } = gitService.getDateRange("daily");
+    const allCommits = await gitService.getAllCommits(since, until);
+    report.value = await aiService.generateReport(allCommits, "daily", currentDateLabel.value);
+  } catch (error) {
+    await dialog.error({ title: "错误", message: `${error}` });
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function copyPrompt() {
+  await clipboard.writeText(prompt.value);
+  await dialog.info({ title: "提示", message: "提示词已复制到剪贴板" });
 }
 
 async function copyReport() {
@@ -137,12 +203,27 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="showReport" class="section report-section">
-        <div class="report-header">
-          <h2>生成的报告</h2>
-          <button class="btn btn-secondary" @click="copyReport">📋 复制报告</button>
+      <div v-if="showResult" class="section result-section">
+        <div class="result-header">
+          <h2>AI 提示词</h2>
         </div>
-        <div class="report-content markdown-body">{{ report }}</div>
+        
+        <div class="prompt-content">{{ prompt }}</div>
+        
+        <div class="prompt-actions">
+          <button class="btn btn-secondary" @click="copyPrompt">📋 复制提示词</button>
+          <button class="btn btn-primary" @click="generateAIReport" :disabled="loading">
+            {{ loading ? "生成中..." : "✨ 生成报告" }}
+          </button>
+        </div>
+
+        <div v-if="report" class="report-section">
+          <div class="report-header">
+            <h3>📄 生成的报告</h3>
+            <button class="btn btn-secondary btn-sm" @click="copyReport">📋 复制报告</button>
+          </div>
+          <div class="report-content markdown-body">{{ report }}</div>
+        </div>
       </div>
     </main>
 
@@ -254,6 +335,11 @@ body {
   cursor: not-allowed;
 }
 
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -347,11 +433,52 @@ body {
   flex-wrap: wrap;
 }
 
-.report-header {
+.result-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.result-header h2 {
+  margin-bottom: 0;
+}
+
+.prompt-content {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 13px;
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.prompt-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.report-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.report-header h3 {
+  font-size: 16px;
+  color: #1a1a2e;
 }
 
 .report-content {
