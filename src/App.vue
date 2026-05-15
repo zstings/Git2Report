@@ -159,11 +159,6 @@ onMounted(() => {
 
 <template>
   <div class="app">
-    <header class="header">
-      <h1>Git2Report</h1>
-      <p class="subtitle">Git 工作报告生成器</p>
-    </header>
-
     <main class="main">
       <div class="section init-section">
         <h2>初始化 Git 钩子</h2>
@@ -273,23 +268,6 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-}
-
-.header {
-  background: rgba(255, 255, 255, 0.95);
-  padding: 24px 32px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-}
-
-.header h1 {
-  font-size: 28px;
-  color: #1a1a2e;
-  margin-bottom: 4px;
-}
-
-.subtitle {
-  color: #666;
-  font-size: 14px;
 }
 
 .main {
