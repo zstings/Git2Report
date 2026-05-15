@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
         name: "Git2Report",
         identifier: "com.git2report.app",
         version: version,
-        icon: ["public/favicon.ico"],
+        icon: ["icon.ico"],
         window: {
           title: "Git2Report - Git 工作报告生成器",
           width: 1000,

@@ -1,4 +1,5 @@
 import { fs, shell, app, path } from "vokex.app";
+import git_commit_history from "./git_commit_history.ts";
 
 export interface GitProject {
   localPath: string;
@@ -44,32 +45,7 @@ export class GitService {
 
       const postCommitPath = await path.join(configDir, "post-commit");
 
-      const hookContent = `#!/bin/bash
-RECORD_FILE="$HOME/.git_projects_list.txt"
-
-PROJECT_PATH=$(git rev-parse --show-toplevel 2>/dev/null)
-
-if [ -n "$PROJECT_PATH" ]; then
-    touch "$RECORD_FILE"
-
-    REMOTE_URL=$(git config --get remote.origin.url 2>/dev/null)
-    if [ -z "$REMOTE_URL" ]; then
-        REMOTE_URL="none"
-    fi
-
-    NEW_ENTRY="$PROJECT_PATH | $REMOTE_URL"
-
-    if ! grep -Fq "$PROJECT_PATH |" "$RECORD_FILE" 2>/dev/null; then
-        echo "$NEW_ENTRY" >> "$RECORD_FILE"
-    else
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s|^$PROJECT_PATH |.*|$NEW_ENTRY|" "$RECORD_FILE"
-        else
-            sed -i "s|^$PROJECT_PATH |.*|$NEW_ENTRY|" "$RECORD_FILE"
-        fi
-    fi
-fi
-`;
+      const hookContent = git_commit_history;
 
       const exists = await fs.exists(postCommitPath);
       const shouldWrite = true;
