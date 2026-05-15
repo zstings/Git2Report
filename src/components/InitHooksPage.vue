@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useConfig } from '../composables/useConfig'
-import { useGit } from '../composables/useGit'
-import { dialog, shell } from 'vokex.app'
+import { onMounted } from 'vue';
+import { useConfig } from '../composables/useConfig';
+import { useGit } from '../composables/useGit';
+import { dialog } from 'vokex.app';
 
-const { config, loading: configLoading, loadConfig, saveConfig } = useConfig()
-const { loading: gitLoading, initGitHooks } = useGit()
+const { config, loading: configLoading, loadConfig, saveConfig } = useConfig();
+const { loading: gitLoading, initGitHooks } = useGit();
 
-const isLoading = () => configLoading.value || gitLoading.value
+const isLoading = () => configLoading.value || gitLoading.value;
 
 async function handleSelectPath() {
-  const result = await dialog.selectDirectory()
-  if (result && result.length > 0) {
-    config.value.reportPath = result[0]
-    await saveConfig()
+  const result = await dialog.showOpenDialog({
+    directory: true,
+    title: '选择报告存放目录'
+  });
+  
+  if (result && typeof result === 'string' && result.length > 0) {
+    config.value.reportPath = result;
+    await saveConfig();
   }
 }
 
@@ -21,21 +25,21 @@ async function handleInit() {
   if (!config.value.reportPath) {
     await dialog.info({
       title: '提示',
-      message: '请先设置报告存放目录路径'
-    })
-    return
+      message: '请先设置报告存放目录'
+    });
+    return;
   }
 
-  const result = await initGitHooks()
+  const result = await initGitHooks(config.value.reportPath);
   await dialog.info({
     title: result.success ? '成功' : '失败',
     message: result.message
-  })
+  });
 }
 
 onMounted(() => {
-  loadConfig()
-})
+  loadConfig();
+});
 </script>
 
 <template>

@@ -37,7 +37,7 @@ export class GitService {
   private readonly HOOK_START_MARKER = "# === GIT2REPORT HOOK START ===";
   private readonly HOOK_END_MARKER = "# === GIT2REPORT HOOK END ===";
 
-  async initGitHooks(): Promise<{ success: boolean; message: string }> {
+  async initGitHooks(reportPath?: string): Promise<{ success: boolean; message: string }> {
     try {
       const homeDir = await this.getHomeDir();
       const configDir = await path.join(homeDir, ".config", "git", "hooks");
@@ -47,7 +47,11 @@ export class GitService {
       await shell.exec("git", ["config", "--global", "core.hooksPath", configDir]);
 
       const postCommitPath = await path.join(configDir, "post-commit");
-      const hookContent = git_commit_history;
+      let hookContent = git_commit_history;
+      if (reportPath) {
+        const normalizedPath = reportPath.replace(/\\/g, "/");
+        hookContent = hookContent.replace(/__REPORT_DIR__/g, normalizedPath);
+      }
       const wrappedHookContent = `${this.HOOK_START_MARKER}\n${hookContent}\n${this.HOOK_END_MARKER}\n`;
 
       const exists = await fs.exists(postCommitPath);
@@ -130,7 +134,7 @@ export class GitService {
     try {
       const projectName = await path.basename(projectPath);
 
-      const format = "###提交：%H%n###作者：%an%n###日期：%ad%n###标题：%s%n###描述：%b%n";
+      // const format = "###提交：%H%n###作者：%an%n###日期：%ad%n###标题：%s%n###描述：%b%n";
       // alert(
       //   JSON.stringify([
       //     "log",
@@ -140,6 +144,8 @@ export class GitService {
       //     "--date=iso",
       //   ]),
       // );
+
+      const format = "###提交：%H%n###作者：%an%n###日期：%ad%n###标题：%s%n###描述：%b%n";
       const result = await shell.exec(
         "git",
         ["log", `--since=${since}`, `--until=${until}`, `--format=${format}`, "--date=iso"],

@@ -2,7 +2,7 @@ const git_commit_history = `#!/bin/bash
 
 # 1. 获取当前日期用于文件名 (格式: 2024-05-20)
 CURRENT_DATE=$(date +"%Y-%m-%d")
-RECORD_FILE="$HOME/\${CURRENT_DATE}-git_commit_history.txt"
+RECORD_FILE="__REPORT_DIR__/\${CURRENT_DATE}-git_commit_history.txt"
 
 # 2. 获取当前 Git 项目信息
 PROJECT_PATH=$(git rev-parse --show-toplevel 2>/dev/null)

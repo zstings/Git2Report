@@ -1,53 +1,44 @@
-import { ref, watch } from 'vue'
-import { fs, app, path } from 'vokex.app'
+import { ref } from 'vue';
+import { storage, app } from 'vokex.app';
 
 export interface AppConfig {
-  reportPath: string
+  reportPath: string;
 }
 
 const defaultConfig: AppConfig = {
   reportPath: ''
-}
+};
 
-const CONFIG_FILENAME = '.git2report_config.json'
+const STORAGE_KEY = 'git2report_config';
 
 export function useConfig() {
-  const config = ref<AppConfig>({ ...defaultConfig })
-  const loading = ref(false)
-
-  async function getConfigPath() {
-    const homeDir = await app.getPath('home')
-    return await path.join(homeDir, CONFIG_FILENAME)
-  }
+  const config = ref<AppConfig>({ ...defaultConfig });
+  const loading = ref(false);
 
   async function loadConfig() {
-    loading.value = true
+    loading.value = true;
     try {
-      const configPath = await getConfigPath()
-      const exists = await fs.exists(configPath)
-      if (exists) {
-        const content = await fs.readFile(configPath, { encoding: 'utf8' })
-        const loadedConfig = JSON.parse(content)
-        config.value = { ...defaultConfig, ...loadedConfig }
+      const savedData = await storage.getData(STORAGE_KEY);
+      if (savedData) {
+        config.value = { ...defaultConfig, ...savedData };
       }
     } catch (error) {
-      console.error('加载配置失败:', error)
-      config.value = { ...defaultConfig }
+      console.error('加载配置失败:', error);
+      config.value = { ...defaultConfig };
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function saveConfig() {
-    loading.value = true
+    loading.value = true;
     try {
-      const configPath = await getConfigPath()
-      await fs.writeFile(configPath, JSON.stringify(config.value, null, 2))
+      await storage.setData(STORAGE_KEY, config.value);
     } catch (error) {
-      console.error('保存配置失败:', error)
-      throw error
+      console.error('保存配置失败:', error);
+      throw error;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
@@ -56,5 +47,5 @@ export function useConfig() {
     loading,
     loadConfig,
     saveConfig
-  }
+  };
 }

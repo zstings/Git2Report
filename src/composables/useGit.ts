@@ -8,10 +8,10 @@ export function useGit() {
   const projects = ref<GitProject[]>([])
   const commits = ref<GitCommit[]>([])
 
-  async function initGitHooks() {
+  async function initGitHooks(reportPath?: string) {
     loading.value = true
     try {
-      const result = await gitService.initGitHooks()
+      const result = await gitService.initGitHooks(reportPath)
       return result
     } finally {
       loading.value = false
