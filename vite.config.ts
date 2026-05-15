@@ -10,25 +10,19 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       vokexPlugin({
-        name: "Vokex Demo",
-        identifier: "com.vokex.vokex",
+        name: "Git2Report",
+        identifier: "com.git2report.app",
         version: version,
-        icon: ["icon/icon.ico", "icon/32x32.png"],
+        icon: ["public/favicon.ico"],
         window: {
-          title: "Vokex App Demo",
-          width: 1200,
-          height: 800,
+          title: "Git2Report - Git 工作报告生成器",
+          width: 1000,
+          height: 700,
           center: true,
+          resizable: true,
         },
         verbose: true,
         devtools: mode == "development",
-        new_window: {
-          value: 1,
-        },
-        security: {
-          allowed_remote_apis: ["fs.readFile", "computer.*"],
-          allow_remote_pages: true,
-        },
       }),
     ],
     resolve: {

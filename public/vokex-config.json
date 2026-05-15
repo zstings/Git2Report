@@ -1,28 +1,18 @@
 {
-  "name": "Vokex Demo",
-  "identifier": "com.vokex.vokex",
-  "version": "0.0.0",
+  "name": "Git2Report",
+  "identifier": "com.git2report.app",
+  "version": "1.0.0",
   "icon": [
-    "icon/icon.ico",
-    "icon/32x32.png"
+    "public/favicon.ico"
   ],
   "window": {
-    "title": "Vokex App Demo",
-    "width": 1200,
-    "height": 800,
-    "center": true
+    "title": "Git2Report - Git 工作报告生成器",
+    "width": 1000,
+    "height": 700,
+    "center": true,
+    "resizable": true
   },
   "verbose": true,
   "devtools": true,
-  "new_window": {
-    "value": 1
-  },
-  "security": {
-    "allowed_remote_apis": [
-      "fs.readFile",
-      "computer.*"
-    ],
-    "allow_remote_pages": true
-  },
   "dev_url": "http://localhost:5175"
 }
