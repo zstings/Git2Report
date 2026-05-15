@@ -98,7 +98,19 @@ ${commitsText}
 2. 按项目分组总结
 3. 突出重要的工作内容
 4. 语言简洁专业
-5. 使用 Markdown 格式`;
+5. 使用 Markdown 格式返回，记录md格式使用4个反引号包裹
+
+示例：
+✅[项目1]
+- 提交
+- 提交
+
+✅[项目2]
+- 提交
+- 提交
+
+示例中不要带作者和日期，只需要提交信息。
+`;
 }
 
 async function generateReport(type: "daily" | "weekly" | "monthly") {
