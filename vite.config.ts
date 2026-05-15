@@ -2,7 +2,7 @@ import { fileURLToPath, URL } from "node:url";
 
 import vue from "@vitejs/plugin-vue";
 import { vokexPlugin } from "vokex.app/vite-plugin";
-import { defineConfig } from "vite";
+import { defineConfig, type UserConfig } from "vite";
 import { version } from "./package.json";
 
 export default defineConfig(({ mode }) => {
@@ -30,5 +30,5 @@ export default defineConfig(({ mode }) => {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
       },
     },
-  };
+  } as UserConfig;
 });
