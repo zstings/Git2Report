@@ -1,79 +1,94 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useGit } from '../composables/useGit'
+import { ref, onMounted, watch } from 'vue'
 import { useAI } from '../composables/useAI'
 import { useConfig } from '../composables/useConfig'
-import { clipboard, dialog, fs, path } from 'vokex.app'
-import type { GitCommit } from '../services/gitService'
+import { useReport } from '../composables/useReport'
+import { clipboard, dialog } from 'vokex.app'
 
-const { loading: gitLoading, loadCommits } = useGit()
-const {
-  loading: aiLoading,
-  config: aiConfig,
-  loadConfig: loadAIConfig,
-  saveConfig: saveAIConfig,
-  generateReport,
-  generatePrompt
-} = useAI()
+const { config: aiConfig, loadConfig: loadAIConfig, saveConfig: saveAIConfig } = useAI()
 const { config: appConfig, loadConfig: loadAppConfig } = useConfig()
+const report = useReport()
 
-const showResult = ref(false)
 const showAIConfig = ref(false)
-const currentPrompt = ref('')
-const currentReport = ref('')
-const currentDateLabel = ref('')
-const currentCommits = ref<GitCommit[]>([])
+const isGenerating = ref(false)
+const isSaving = ref(false)
 
-const isLoading = () => gitLoading.value || aiLoading.value
-
-async function handleGenerate(type: 'daily' | 'weekly' | 'monthly') {
-  const result = await loadCommits(type)
-  if (!result) return
-
-  const { since, until, commits } = result
-  currentDateLabel.value = `${since} 至 ${until}`
-  currentCommits.value = commits
-
-  if (commits.length === 0) {
-    await dialog.info({
-      title: '提示',
-      message: '该时间段暂无提交记录'
-    })
-    return
+function formatTime(dateStr: string): string {
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return dateStr
   }
-
-  currentPrompt.value = generatePrompt(commits, type, currentDateLabel.value)
-  showResult.value = true
-  currentReport.value = ''
 }
 
-async function handleCopyPrompt() {
-  await clipboard.writeText(currentPrompt.value)
-  await dialog.info({
-    title: '成功',
-    message: '提示词已复制到剪贴板'
-  })
+function truncate(str: string, maxLength: number = 50): string {
+  if (str.length <= maxLength) return str
+  return str.substring(0, maxLength) + '...'
 }
 
-async function handleGenerateAI() {
+async function handleLoadGitLogs() {
+  console.log(`[DEBUG] handleLoadGitLogs 开始执行`)
+  report.loading.value = true
+  try {
+    console.log(`[DEBUG] appConfig.value.reportPath: ${appConfig.value.reportPath}`)
+    
+    if (!appConfig.value.reportPath) {
+      console.log(`[DEBUG] reportPath 为空，跳过加载`)
+      return
+    }
+    
+    console.log(`[DEBUG] 调用 report.loadGitLogs，日期: ${report.selectedDate.value}`)
+    await report.loadGitLogs(appConfig.value.reportPath, report.selectedDate.value)
+
+    if (report.hasArchivedReport(report.selectedDate.value)) {
+      report.generatedReport.value = report.loadArchivedReport(report.selectedDate.value)
+      console.log(`[DEBUG] 已加载存档报告`)
+    }
+    
+    console.log(`[DEBUG] 加载完成，gitLogs 数量: ${report.gitLogs.value.length}`)
+  } catch (error) {
+    console.error('加载 Git 日志失败:', error)
+  } finally {
+    report.loading.value = false
+    console.log(`[DEBUG] handleLoadGitLogs 执行完毕，loading 状态已重置`)
+  }
+}
+
+async function handleGenerateReport() {
   if (!aiConfig.value.apiKey) {
     await dialog.info({
       title: '提示',
-      message: '请先配置 AI 服务'
+      body: '请先配置 AI 服务'
     })
     showAIConfig.value = true
     return
   }
 
-  const report = await generateReport(currentCommits.value, 'daily', currentDateLabel.value)
-  currentReport.value = report
+  isGenerating.value = true
+  try {
+    if (report.selectedReportType.value === 'daily') {
+      await report.generateDailyReport()
+    } else {
+      const type = report.selectedReportType.value === 'weekly' ? 'week' : 'month'
+      await report.generateCycleReport(appConfig.value.reportPath, type)
+    }
+  } catch (error) {
+    await dialog.error({
+      title: '生成失败',
+      body: String(error)
+    })
+  } finally {
+    isGenerating.value = false
+  }
 }
 
 async function handleCopyReport() {
-  await clipboard.writeText(currentReport.value)
+  if (!report.generatedReport.value) return
+  await clipboard.writeText(report.generatedReport.value)
   await dialog.info({
     title: '成功',
-    message: '报告已复制到剪贴板'
+    body: '报告已复制到剪贴板'
   })
 }
 
@@ -81,20 +96,34 @@ async function handleSaveReport() {
   if (!appConfig.value.reportPath) {
     await dialog.info({
       title: '提示',
-      message: '请先在初始化页面设置报告存放目录'
+      body: '请先在初始化页面设置报告存放目录'
     })
     return
   }
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const filename = `report-${timestamp}.md`
-  const filepath = await path.join(appConfig.value.reportPath, filename)
+  if (report.selectedReportType.value !== 'daily') {
+    await dialog.info({
+      title: '提示',
+      body: '仅日报可以存档'
+    })
+    return
+  }
 
-  await fs.writeFile(filepath, currentReport.value)
-  await dialog.info({
-    title: '成功',
-    message: `报告已保存到 ${filepath}`
-  })
+  isSaving.value = true
+  try {
+    await report.saveDailyReport(appConfig.value.reportPath)
+    await dialog.info({
+      title: '成功',
+      body: '报告已存档'
+    })
+  } catch (error) {
+    await dialog.error({
+      title: '保存失败',
+      body: String(error)
+    })
+  } finally {
+    isSaving.value = false
+  }
 }
 
 async function handleSaveAIConfig() {
@@ -102,78 +131,217 @@ async function handleSaveAIConfig() {
   showAIConfig.value = false
   await dialog.info({
     title: '成功',
-    message: '配置已保存'
+    body: '配置已保存'
   })
 }
 
-onMounted(() => {
-  loadAIConfig()
-  loadAppConfig()
+function changeDate(days: number) {
+  const current = new Date(report.selectedDate.value)
+  current.setDate(current.getDate() + days)
+  report.setDate(report.formatDate(current))
+}
+
+function renderMarkdown(text: string | undefined): string {
+  if (!text || typeof text !== 'string') return ''
+  try {
+    let result = text
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+      .replace(/\*(.*)\*/gim, '<em>$1</em>')
+      .replace(/`(.*?)`/gim, '<code>$1</code>')
+    const lines = result.split('\n')
+    let inList = false
+    result = ''
+    for (const line of lines) {
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+        if (!inList) {
+          result += '<ul>'
+          inList = true
+        }
+        result += `<li>${line.trim().substring(2)}</li>`
+      } else {
+        if (inList) {
+          result += '</ul>'
+          inList = false
+        }
+        if (line.trim()) {
+          result += `<p>${line}</p>`
+        }
+      }
+    }
+    if (inList) result += '</ul>'
+    return result
+  } catch (error) {
+    console.error('渲染 Markdown 失败:', error)
+    return ''
+  }
+}
+
+watch(report.selectedDate, async () => {
+  await handleLoadGitLogs()
+})
+
+onMounted(async () => {
+  await Promise.all([
+    loadAIConfig(),
+    loadAppConfig()
+  ])
+
+  if (appConfig.value.reportPath) {
+    await report.loadDailyArchive(appConfig.value.reportPath)
+    await handleLoadGitLogs()
+  }
 })
 </script>
 
 <template>
   <div class="page report-page">
     <div class="page-header">
-      <h1>📝 生成报告</h1>
-      <p class="subtitle">选择报告类型，自动生成 AI 提示词和报告</p>
+      <h1>📝 智能工作报告</h1>
+      <p class="subtitle">基于 Git 提交历史自动生成专业工作报告</p>
     </div>
 
-    <div class="card actions-card">
-      <h2>选择报告类型</h2>
-      <div class="action-buttons">
-        <button class="btn btn-success" @click="handleGenerate('daily')" :disabled="isLoading()">
-          📅 生成日报
-        </button>
-        <button class="btn btn-info" @click="handleGenerate('weekly')" :disabled="isLoading()">
-          📆 生成周报
-        </button>
-        <button class="btn btn-warning" @click="handleGenerate('monthly')" :disabled="isLoading()">
-          🗓️ 生成月报
-        </button>
-        <button class="btn btn-secondary" @click="showAIConfig = true">
-          ⚙️ 配置 AI
-        </button>
+    <div class="workflow-container">
+      <div class="left-panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>📅 今日 Git 足迹</h2>
+            <div class="date-navigator">
+              <button class="btn btn-icon" @click="changeDate(-1)" title="前一天">‹</button>
+              <input
+                type="date"
+                class="date-input"
+                v-model="report.selectedDate.value"
+              />
+              <button class="btn btn-icon" @click="changeDate(1)" title="后一天">›</button>
+            </div>
+          </div>
+
+          <div v-if="report.loading.value" class="loading-container">
+            <div class="spinner"></div>
+            <span>加载中...</span>
+          </div>
+
+          <div v-else-if="report.gitLogs.value.length === 0" class="empty-state">
+            <p>暂无 Git 提交记录</p>
+          </div>
+
+          <div v-else class="git-logs-list">
+            <div
+              v-for="(log, index) in report.gitLogs.value"
+              :key="index"
+              class="log-item"
+            >
+              <div class="log-header">
+                <span class="project-badge">{{ log.projectName }}</span>
+                <span class="log-time">{{ formatTime(log.date) }}</span>
+              </div>
+              <div class="log-content">{{ truncate(log.content) }}</div>
+              <div v-if="log.diff" class="log-diff-badge">包含代码变更</div>
+            </div>
+          </div>
+
+          <div class="notes-section">
+            <label class="notes-label">📝 今日工作补充</label>
+            <textarea
+              v-model="report.userNotes.value"
+              class="notes-textarea"
+              placeholder="在此记录非代码工作，如：开会、写文档、线上排查等..."
+            />
+          </div>
+        </div>
+
+        <div v-if="report.selectedReportType.value === 'daily' && report.hasArchivedReport(report.selectedDate.value)" class="card archive-badge">
+          <span class="archive-icon">✅</span>
+          <span class="archive-text">该日期已有存档报告</span>
+        </div>
       </div>
-    </div>
 
-    <div v-if="showResult" class="card result-card">
-      <div class="result-header">
-        <h2>AI 提示词</h2>
-        <span class="date-label">{{ currentDateLabel }}</span>
-      </div>
+      <div class="right-panel">
+        <div class="card">
+          <div class="card-header">
+            <div class="report-type-tabs">
+              <button
+                class="tab-btn"
+                :class="{ active: report.selectedReportType.value === 'daily' }"
+                @click="report.setReportType('daily')"
+              >
+                日报
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ active: report.selectedReportType.value === 'weekly' }"
+                @click="report.setReportType('weekly')"
+              >
+                周报
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ active: report.selectedReportType.value === 'monthly' }"
+                @click="report.setReportType('monthly')"
+              >
+                月报
+              </button>
+            </div>
 
-      <div class="prompt-content">{{ currentPrompt }}</div>
-
-      <div class="prompt-actions">
-        <button class="btn btn-secondary" @click="handleCopyPrompt" :disabled="isLoading()">
-          📋 复制提示词
-        </button>
-        <button class="btn btn-primary" @click="handleGenerateAI" :disabled="isLoading()">
-          {{ aiLoading ? '生成中...' : '✨ 生成报告' }}
-        </button>
-      </div>
-
-      <div v-if="currentReport" class="report-section">
-        <div class="report-header">
-          <h3>📄 生成的报告</h3>
-          <div class="report-actions">
-            <button class="btn btn-secondary btn-sm" @click="handleCopyReport">
-              📋 复制
+            <button
+              class="btn btn-secondary btn-small"
+              @click="showAIConfig = true"
+              title="AI 配置"
+            >
+              ⚙️
             </button>
-            <button class="btn btn-success btn-sm" @click="handleSaveReport">
-              💾 保存
+          </div>
+
+          <div class="generate-section">
+            <button
+              class="btn btn-primary generate-btn"
+              @click="handleGenerateReport"
+              :disabled="isGenerating"
+            >
+              <span v-if="isGenerating" class="spinner small"></span>
+              {{ isGenerating ? '生成中...' : '🪄 智能 AI 一键生成' }}
+            </button>
+          </div>
+
+          <div class="report-editor-section">
+            <label class="editor-label">AI 报告预览（可编辑）</label>
+            <textarea
+              v-model="report.generatedReport.value"
+              class="report-editor"
+              placeholder="点击上方按钮生成报告..."
+            />
+
+            <div v-if="report.generatedReport.value" class="report-preview markdown-body" v-html="renderMarkdown(report.generatedReport.value)"></div>
+          </div>
+
+          <div v-if="report.generatedReport.value" class="actions-bar">
+            <button
+              class="btn btn-secondary"
+              @click="handleCopyReport"
+            >
+              📋 一键复制
+            </button>
+
+            <button
+              v-if="report.selectedReportType.value === 'daily'"
+              class="btn btn-success"
+              @click="handleSaveReport"
+              :disabled="isSaving"
+            >
+              {{ isSaving ? '保存中...' : '💾 确认存档' }}
             </button>
           </div>
         </div>
-        <div class="report-content markdown-body">{{ currentReport }}</div>
       </div>
     </div>
 
     <div v-if="showAIConfig" class="modal-overlay" @click.self="showAIConfig = false">
       <div class="modal">
         <div class="modal-header">
-          <h3>AI 配置</h3>
+          <h3>⚙️ AI 配置</h3>
           <button class="close-btn" @click="showAIConfig = false">×</button>
         </div>
         <div class="modal-body">
@@ -201,6 +369,13 @@ onMounted(() => {
               placeholder="gpt-3.5-turbo"
             />
           </div>
+          <div class="form-group">
+            <label>个人偏好（选填）</label>
+            <textarea
+              v-model="aiConfig.systemPreference"
+              placeholder="例如：字数要求精炼，按格式：进展/问题/规划输出..."
+            />
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="showAIConfig = false">取消</button>
@@ -214,12 +389,12 @@ onMounted(() => {
 <style scoped>
 .page {
   padding: 24px;
-  max-width: 1000px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
 .page-header {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .page-header h1 {
@@ -233,28 +408,60 @@ onMounted(() => {
   font-size: 14px;
 }
 
+.workflow-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.left-panel,
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .card {
   background: white;
   border-radius: 12px;
   padding: 24px;
-  margin-bottom: 20px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.card h2 {
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.card-header h2 {
   font-size: 18px;
   color: #1a1a2e;
-  margin-bottom: 16px;
+  margin: 0;
+}
+
+.date-navigator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .btn {
-  padding: 12px 24px;
+  padding: 10px 20px;
   border: none;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .btn:disabled {
@@ -262,19 +469,9 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-.btn-sm {
-  padding: 8px 16px;
-  font-size: 13px;
-}
-
 .btn-primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .btn-success {
@@ -282,128 +479,246 @@ onMounted(() => {
   color: white;
 }
 
-.btn-success:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4);
-}
-
-.btn-info {
-  background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%);
-  color: white;
-}
-
-.btn-info:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(33, 147, 176, 0.4);
-}
-
-.btn-warning {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
-}
-
-.btn-warning:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
-}
-
 .btn-secondary {
   background: #f0f0f0;
   color: #333;
 }
 
-.btn-secondary:hover:not(:disabled) {
-  background: #e0e0e0;
-}
-
-.action-buttons {
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 18px;
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.result-header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  justify-content: center;
 }
 
-.date-label {
+.btn-small {
+  padding: 6px 12px;
   font-size: 13px;
+}
+
+.date-input {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 12px;
+  color: #666;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #f0f0f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinner.small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
   color: #999;
 }
 
-.prompt-content {
-  background: #f8f9fa;
-  padding: 16px;
-  border-radius: 8px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  font-family: monospace;
-  font-size: 13px;
-  max-height: 400px;
+.git-logs-list {
+  max-height: 300px;
   overflow-y: auto;
   margin-bottom: 16px;
 }
 
-.prompt-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
-
-.report-section {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.report-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.report-header h3 {
-  font-size: 16px;
-  color: #1a1a2e;
-}
-
-.report-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.report-content {
-  background: #f8f9fa;
-  padding: 24px;
+.log-item {
+  padding: 12px;
   border-radius: 8px;
-  line-height: 1.8;
-  white-space: pre-wrap;
-  max-height: 500px;
-  overflow-y: auto;
-}
-
-:deep(.markdown-body) h1,
-:deep(.markdown-body) h2,
-:deep(.markdown-body) h3 {
-  margin-top: 16px;
+  background: #f8f9fa;
   margin-bottom: 8px;
 }
 
-:deep(.markdown-body) ul,
-:deep(.markdown-body) ol {
-  padding-left: 24px;
-  margin-bottom: 12px;
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
-:deep(.markdown-body) code {
-  background: #e9ecef;
-  padding: 2px 6px;
+.project-badge {
+  padding: 4px 10px;
+  background: #667eea;
+  color: white;
   border-radius: 4px;
-  font-family: monospace;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.log-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.log-content {
+  font-size: 14px;
+  color: #333;
+}
+
+.log-diff-badge {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #11998e;
+}
+
+.notes-section {
+  margin-top: 16px;
+}
+
+.notes-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.notes-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.notes-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.archive-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+}
+
+.archive-icon {
+  font-size: 20px;
+}
+
+.archive-text {
+  color: #2e7d32;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.report-type-tabs {
+  display: flex;
+  gap: 4px;
+  background: #f0f0f0;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.tab-btn {
+  padding: 8px 20px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  color: #333;
+}
+
+.tab-btn.active {
+  background: white;
+  color: #667eea;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.generate-section {
+  margin-bottom: 20px;
+}
+
+.generate-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 14px 24px;
+  font-size: 16px;
+}
+
+.report-editor-section {
+  margin-bottom: 16px;
+}
+
+.editor-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.report-editor {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.report-editor:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.report-preview {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.actions-bar {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .modal-overlay {
@@ -463,14 +778,20 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
 .form-group label {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
   color: #333;
+  font-size: 14px;
 }
 
-.form-group input {
+.form-group input,
+.form-group textarea {
   width: 100%;
   padding: 12px;
   border: 1px solid #ddd;
@@ -478,9 +799,16 @@ onMounted(() => {
   font-size: 14px;
   transition: border-color 0.2s;
   box-sizing: border-box;
+  font-family: inherit;
 }
 
-.form-group input:focus {
+.form-group textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
   outline: none;
   border-color: #667eea;
 }
@@ -491,5 +819,44 @@ onMounted(() => {
   gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid #eee;
+}
+
+:deep(.markdown-body) h1,
+:deep(.markdown-body) h2,
+:deep(.markdown-body) h3 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  color: #1a1a2e;
+}
+
+:deep(.markdown-body) h1 { font-size: 20px; }
+:deep(.markdown-body) h2 { font-size: 18px; }
+:deep(.markdown-body) h3 { font-size: 16px; }
+
+:deep(.markdown-body) p {
+  margin: 8px 0;
+}
+
+:deep(.markdown-body) ul {
+  padding-left: 24px;
+  margin: 8px 0;
+}
+
+:deep(.markdown-body) li {
+  margin: 4px 0;
+}
+
+:deep(.markdown-body) code {
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+@media (max-width: 1024px) {
+  .workflow-container {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

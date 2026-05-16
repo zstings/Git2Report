@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { storage, app } from 'vokex.app';
+import { storage } from 'vokex.app';
 
 export interface AppConfig {
   reportPath: string;
