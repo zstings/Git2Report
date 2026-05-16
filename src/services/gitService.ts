@@ -136,6 +136,69 @@ export class GitService {
     }
   }
 
+  async scanProjectsFromLogs(logDir: string): Promise<GitProject[]> {
+    try {
+      const originalDir = await path.join(logDir, "original");
+      const exists = await fs.exists(originalDir);
+      
+      if (!exists) {
+        return [];
+      }
+
+      const files = await fs.glob({
+        pattern: "*.txt",
+        cwd: originalDir,
+        absolute: true
+      });
+
+      const projectMap = new Map<string, string>();
+
+      for (const filePath of files) {
+        try {
+          const content = await fs.readFile(filePath, { encoding: "utf8" });
+          const lines = content.split("\n");
+          
+          for (const line of lines) {
+            if (line.startsWith("项目：")) {
+              const projectPath = line.substring("项目：".length).trim();
+              if (projectPath && !projectMap.has(projectPath)) {
+                // 尝试获取远程仓库地址
+                try {
+                  const remoteResult = await shell.exec(
+                    "git",
+                    ["config", "--get", "remote.origin.url"],
+                    { cwd: projectPath }
+                  );
+                  projectMap.set(
+                    projectPath, 
+                    remoteResult.success && remoteResult.stdout 
+                      ? remoteResult.stdout.trim() 
+                      : "none"
+                  );
+                } catch {
+                  projectMap.set(projectPath, "none");
+                }
+              }
+              break; // 一个文件只取第一个项目
+            }
+          }
+        } catch (error) {
+          console.error(`读取日志文件 ${filePath} 失败:`, error);
+        }
+      }
+
+      const projects: GitProject[] = [];
+      for (const [localPath, remoteUrl] of projectMap) {
+        projects.push({ localPath, remoteUrl });
+      }
+
+      return projects;
+    } catch (error) {
+      console.error("扫描日志目录失败:", error);
+      return [];
+    }
+  }
+
   async getCommits(projectPath: string, since: string, until: string): Promise<GitCommit[]> {
     try {
       const projectName = await path.basename(projectPath);

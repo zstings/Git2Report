@@ -1,11 +1,49 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useGit } from '../composables/useGit'
+import { onMounted } from 'vue'
+import { useProjects } from '../composables/useProjects'
+import { useConfig } from '../composables/useConfig'
+import { dialog, fs } from 'vokex.app'
 
-const { loading, projects, loadProjects } = useGit()
+const { 
+  loading, 
+  filteredProjects, 
+  searchQuery, 
+  loadProjects, 
+  scanProjectsFromLogs, 
+  setSearchQuery
+} = useProjects()
+const { config, loadConfig } = useConfig()
 
-onMounted(() => {
-  loadProjects()
+async function handleScanLogs() {
+  if (!config.value.reportPath) {
+    await dialog.info({
+      title: '提示',
+      message: '请先在初始化页面设置报告存放目录'
+    })
+    return
+  }
+  
+  const exists = await fs.exists(config.value.reportPath)
+  if (!exists) {
+    await dialog.info({
+      title: '提示',
+      message: `报告目录不存在: ${config.value.reportPath}`
+    })
+    return
+  }
+  
+  const addedCount = await scanProjectsFromLogs(config.value.reportPath)
+  await dialog.info({
+    title: '完成',
+    message: addedCount > 0 
+      ? `扫描完成，发现 ${addedCount} 个新项目` 
+      : '扫描完成，未发现新项目'
+  })
+}
+
+onMounted(async () => {
+  await loadConfig()
+  await loadProjects()
 })
 </script>
 
@@ -14,18 +52,43 @@ onMounted(() => {
     <div class="page-header">
       <h1>📂 已记录的项目</h1>
       <p class="subtitle">所有已被 Git 钩子记录的项目列表</p>
-      <button class="btn btn-secondary" @click="loadProjects" :disabled="loading">
-        {{ loading ? '刷新中...' : '刷新列表' }}
-      </button>
+      <div class="header-actions">
+        <button class="btn btn-secondary" @click="handleScanLogs" :disabled="loading">
+          🔍 扫描日志
+        </button>
+      </div>
     </div>
 
-    <div v-if="loading && projects.length === 0" class="loading-state">
+    <div class="search-section">
+      <div class="search-input-group">
+        <span class="search-icon">🔎</span>
+        <input
+          type="text"
+          v-model="searchQuery"
+          @input="setSearchQuery(searchQuery)"
+          placeholder="搜索项目名称或路径..."
+          class="search-input"
+        />
+        <button 
+          v-if="searchQuery" 
+          class="btn btn-clear" 
+          @click="setSearchQuery('')"
+        >
+          ×
+        </button>
+      </div>
+      <div v-if="searchQuery" class="search-hint">
+        找到 {{ filteredProjects.length }} 个匹配项目
+      </div>
+    </div>
+
+    <div v-if="loading && filteredProjects.length === 0" class="loading-state">
       <div class="spinner"></div>
       <p>加载中...</p>
     </div>
 
-    <div v-else-if="projects.length > 0" class="projects-list">
-      <div v-for="(project, index) in projects" :key="index" class="project-card">
+    <div v-else-if="filteredProjects.length > 0" class="projects-list">
+      <div v-for="(project, index) in filteredProjects" :key="index" class="project-card">
         <div class="project-icon">
           {{ project.localPath.split(/[\\/]/).pop()?.charAt(0).toUpperCase() || '?' }}
         </div>
@@ -44,7 +107,7 @@ onMounted(() => {
     <div v-else class="empty-state">
       <div class="empty-icon">📭</div>
       <h2>暂无项目</h2>
-      <p>还没有记录任何项目，请先在 Git 项目中提交代码，或初始化钩子</p>
+      <p>还没有记录任何项目，点击「扫描日志」从已有的日志文件中识别项目</p>
     </div>
   </div>
 </template>
@@ -60,7 +123,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 16px;
 }
@@ -74,6 +137,72 @@ onMounted(() => {
 .subtitle {
   color: #666;
   font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.search-section {
+  margin-bottom: 24px;
+}
+
+.search-input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 16px;
+  font-size: 16px;
+  pointer-events: none;
+}
+
+.search-input {
+  flex: 1;
+  padding: 12px 48px 12px 44px;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-clear {
+  position: absolute;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: #f0f0f0;
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.btn-clear:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+
+.search-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #667eea;
 }
 
 .btn {
@@ -190,7 +319,7 @@ onMounted(() => {
 
 .empty-state {
   text-align: center;
-  padding: 80px 20px;
+  padding: 60px 20px;
 }
 
 .empty-icon {
@@ -207,5 +336,6 @@ onMounted(() => {
 .empty-state p {
   color: #666;
   line-height: 1.6;
+  margin-bottom: 20px;
 }
 </style>
