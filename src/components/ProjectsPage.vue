@@ -44,6 +44,9 @@ async function handleScanLogs() {
 onMounted(async () => {
   await loadConfig()
   await loadProjects()
+  if (config.value.reportPath) {
+    await scanProjectsFromLogs(config.value.reportPath)
+  }
 })
 </script>
 
@@ -122,7 +125,7 @@ onMounted(async () => {
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 16px;

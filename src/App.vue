@@ -7,9 +7,13 @@ import GenerateReportPage from "./components/GenerateReportPage.vue";
 type Page = "init" | "projects" | "report";
 
 const currentPage = ref<Page>("init");
+const projectsPageKey = ref(0);
 
 function navigateTo(page: Page) {
   currentPage.value = page;
+  if (page === "projects") {
+    projectsPageKey.value += 1;
+  }
 }
 </script>
 
@@ -53,7 +57,7 @@ function navigateTo(page: Page) {
 
     <main class="main">
       <InitHooksPage v-if="currentPage === 'init'" />
-      <ProjectsPage v-else-if="currentPage === 'projects'" />
+      <ProjectsPage v-else-if="currentPage === 'projects'" :key="projectsPageKey" />
       <GenerateReportPage v-else-if="currentPage === 'report'" />
     </main>
   </div>
