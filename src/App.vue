@@ -70,16 +70,19 @@ function navigateTo(page: Page) {
   box-sizing: border-box;
 }
 
+html,
 body {
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #f5f7fa;
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
 }
 
 .app {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -89,11 +92,16 @@ body {
   display: flex;
   flex-direction: column;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 
 .sidebar-header {
   padding: 32px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .app-title {
@@ -117,6 +125,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .nav-item {
@@ -132,6 +142,7 @@ body {
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .nav-item:hover {
@@ -156,6 +167,7 @@ body {
 .sidebar-footer {
   padding: 20px 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .footer-text {
@@ -168,5 +180,7 @@ body {
   flex: 1;
   overflow-y: auto;
   background: #f5f7fa;
+  height: 100vh;
+  overflow-x: hidden;
 }
 </style>
