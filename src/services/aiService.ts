@@ -259,17 +259,9 @@ ${archiveSummaries
         `${date}-git_commit_history.txt`,
       );
 
-      console.log(`[DEBUG] 尝试读取 Git 日志文件:`);
-      console.log(`[DEBUG]   reportPath: ${reportPath}`);
-      console.log(`[DEBUG]   date: ${date}`);
-      console.log(`[DEBUG]   originalDir: ${originalDir}`);
-      console.log(`[DEBUG]   logPath: ${logPath}`);
-
       const exists = await fs.exists(logPath);
-      console.log(`[DEBUG]   文件是否存在: ${exists}`);
       
       if (!exists) {
-        console.log(`[DEBUG]   文件不存在，返回空数组`);
         return [];
       }
 

@@ -28,30 +28,21 @@ function truncate(str: string, maxLength: number = 50): string {
 }
 
 async function handleLoadGitLogs() {
-  console.log(`[DEBUG] handleLoadGitLogs 开始执行`)
   report.loading.value = true
   try {
-    console.log(`[DEBUG] appConfig.value.reportPath: ${appConfig.value.reportPath}`)
-    
     if (!appConfig.value.reportPath) {
-      console.log(`[DEBUG] reportPath 为空，跳过加载`)
       return
     }
     
-    console.log(`[DEBUG] 调用 report.loadGitLogs，日期: ${report.selectedDate.value}`)
     await report.loadGitLogs(appConfig.value.reportPath, report.selectedDate.value)
 
     if (report.hasArchivedReport(report.selectedDate.value)) {
       report.generatedReport.value = report.loadArchivedReport(report.selectedDate.value)
-      console.log(`[DEBUG] 已加载存档报告`)
     }
-    
-    console.log(`[DEBUG] 加载完成，gitLogs 数量: ${report.gitLogs.value.length}`)
   } catch (error) {
     console.error('加载 Git 日志失败:', error)
   } finally {
     report.loading.value = false
-    console.log(`[DEBUG] handleLoadGitLogs 执行完毕，loading 状态已重置`)
   }
 }
 
