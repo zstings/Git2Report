@@ -736,9 +736,10 @@ onMounted(async () => {
 
 .report-content {
   flex: 1;
-  overflow-y: auto;
   padding: 0 20px;
   margin-bottom: 16px;
+  min-height: 0;
+  height: 100%;
 }
 
 .report-editor {
@@ -770,7 +771,8 @@ onMounted(async () => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--bg-main);
-  min-height: 300px;
+  height: 100%;
+  overflow: auto;
 }
 
 .placeholder-text {

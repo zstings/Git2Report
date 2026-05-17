@@ -50,7 +50,7 @@ function navigateTo(page: Page) {
           <span class="nav-text">生成报告</span>
         </button>
       </nav>
-      <div class="sidebar-footer">
+      <div class="sidebar-footer" v-if="false">
         <p class="footer-text">基于 Vue 3 + Vite</p>
       </div>
     </aside>
