@@ -679,7 +679,7 @@ onMounted(async () => {
   border: none;
   border-radius: var(--radius-md);
   background: var(--text-primary);
-  color: white;
+  color: var(--bg-panel);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -815,7 +815,7 @@ onMounted(async () => {
   border: none;
   border-radius: var(--radius-md);
   background: var(--text-primary);
-  color: white;
+  color: var(--bg-panel);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -956,7 +956,7 @@ onMounted(async () => {
   border: none;
   border-radius: var(--radius-md);
   background: var(--text-primary);
-  color: white;
+  color: var(--bg-panel);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;

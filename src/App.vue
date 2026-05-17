@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import InitHooksPage from "./components/InitHooksPage.vue";
 import ProjectsPage from "./components/ProjectsPage.vue";
 import GenerateReportPage from "./components/GenerateReportPage.vue";
+import { useDarkMode } from "./composables/useDarkMode";
 
 type Page = "init" | "projects" | "report";
 
 const currentPage = ref<Page>("init");
 const projectsPageKey = ref(0);
+const { isDark, initTheme, toggleDark } = useDarkMode();
 
 function navigateTo(page: Page) {
   currentPage.value = page;
@@ -15,14 +17,25 @@ function navigateTo(page: Page) {
     projectsPageKey.value += 1;
   }
 }
+
+onMounted(() => {
+  initTheme();
+});
 </script>
 
 <template>
   <div class="app">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <h1 class="app-title">Git2Report</h1>
-        <p class="app-subtitle">工作报告生成器</p>
+        <div class="header-top">
+          <div>
+            <h1 class="app-title">Git2Report</h1>
+            <p class="app-subtitle">工作报告生成器</p>
+          </div>
+          <button class="theme-toggle" @click="toggleDark" :title="isDark ? '切换到浅色模式' : '切换到暗黑模式'">
+            {{ isDark ? '☀️' : '🌙' }}
+          </button>
+        </div>
       </div>
       <nav class="nav">
         <button
@@ -76,6 +89,17 @@ function navigateTo(page: Page) {
   --radius-md: 6px;
 }
 
+html.dark {
+  --bg-main: #0b0f19;
+  --bg-panel: #131a26;
+  --bg-sidebar: #0f1420;
+  --text-primary: #f8fafc;
+  --text-regular: #cbd5e1;
+  --text-muted: #64748b;
+  --color-primary: #3b82f6;
+  --color-border: #1e293b;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -89,6 +113,7 @@ body {
   background: var(--bg-main);
   height: 100%;
   overflow: hidden;
+  transition: background-color 0.2s ease;
 }
 
 *::-webkit-scrollbar {
@@ -106,6 +131,14 @@ body {
 
 *::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+html.dark *::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+html.dark *::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }
 
 .app {
@@ -131,6 +164,32 @@ body {
   padding: 24px 20px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.theme-toggle {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  background: var(--bg-main);
+  border-color: var(--color-primary);
 }
 
 .app-title {
