@@ -53,18 +53,18 @@ onMounted(async () => {
 <template>
   <div class="page projects-page">
     <div class="page-header">
-      <h1>📂 已记录的项目</h1>
-      <p class="subtitle">所有已被 Git 钩子记录的项目列表</p>
-      <div class="header-actions">
-        <button class="btn btn-secondary" @click="handleScanLogs" :disabled="loading">
-          🔍 扫描日志
-        </button>
+      <div class="header-left">
+        <h1>已记录的项目</h1>
+        <p class="subtitle">所有已被 Git 钩子记录的项目列表</p>
       </div>
+      <button class="btn-scan" @click="handleScanLogs" :disabled="loading">
+        扫描日志
+      </button>
     </div>
 
     <div class="search-section">
       <div class="search-input-group">
-        <span class="search-icon">🔎</span>
+        <span class="search-icon">�</span>
         <input
           type="text"
           v-model="searchQuery"
@@ -72,9 +72,9 @@ onMounted(async () => {
           placeholder="搜索项目名称或路径..."
           class="search-input"
         />
-        <button 
-          v-if="searchQuery" 
-          class="btn btn-clear" 
+        <button
+          v-if="searchQuery"
+          class="btn-clear"
           @click="setSearchQuery('')"
         >
           ×
@@ -90,12 +90,12 @@ onMounted(async () => {
       <p>加载中...</p>
     </div>
 
-    <div v-else-if="filteredProjects.length > 0" class="projects-list">
+    <div v-else-if="filteredProjects.length > 0" class="projects-grid">
       <div v-for="(project, index) in filteredProjects" :key="index" class="project-card">
-        <div class="project-icon">
+        <div class="project-initials">
           {{ project.localPath.split(/[\\/]/).pop()?.charAt(0).toUpperCase() || '?' }}
         </div>
-        <div class="project-info">
+        <div class="project-details">
           <div class="project-name">
             {{ project.localPath.split(/[\\/]/).pop() }}
           </div>
@@ -118,37 +118,56 @@ onMounted(async () => {
 <style scoped>
 .page {
   padding: 24px;
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 20px;
 }
 
-.page-header h1 {
-  font-size: 28px;
-  color: #1a1a2e;
-  margin-bottom: 8px;
+.header-left h1 {
+  font-size: 20px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  font-weight: 600;
 }
 
 .subtitle {
-  color: #666;
-  font-size: 14px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
-.header-actions {
-  display: flex;
-  gap: 12px;
+.btn-scan {
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text-regular);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-scan:hover:not(:disabled) {
+  background: var(--bg-sidebar);
+  border-color: var(--text-muted);
+}
+
+.btn-scan:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .search-section {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .search-input-group {
@@ -159,77 +178,56 @@ onMounted(async () => {
 
 .search-icon {
   position: absolute;
-  left: 16px;
-  font-size: 16px;
+  left: 14px;
+  font-size: 15px;
   pointer-events: none;
+  opacity: 0.6;
 }
 
 .search-input {
   flex: 1;
-  padding: 12px 48px 12px 44px;
-  border: 2px solid #e0e0e0;
-  border-radius: 12px;
+  padding: 10px 40px 10px 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   font-size: 14px;
-  transition: all 0.2s;
+  transition: all 0.15s;
+  background: var(--bg-panel);
+  color: var(--text-regular);
 }
 
 .search-input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--color-primary);
 }
 
 .btn-clear {
   position: absolute;
-  right: 12px;
-  width: 28px;
-  height: 28px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
   border: none;
-  background: #f0f0f0;
+  background: transparent;
   border-radius: 50%;
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
-  color: #666;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  transition: all 0.15s;
 }
 
 .btn-clear:hover {
-  background: #e0e0e0;
-  color: #333;
+  background: var(--bg-sidebar);
+  color: var(--text-primary);
 }
 
 .search-hint {
   margin-top: 8px;
-  font-size: 13px;
-  color: #667eea;
-}
-
-.btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: #f0f0f0;
-  color: #333;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e0e0e0;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .loading-state {
@@ -241,12 +239,12 @@ onMounted(async () => {
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f0f0f0;
-  border-top-color: #667eea;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
@@ -254,91 +252,97 @@ onMounted(async () => {
 }
 
 .loading-state p {
-  margin-top: 16px;
-  color: #666;
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 14px;
 }
 
-.projects-list {
+.projects-grid {
   display: grid;
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
 }
 
 .project-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
+  background: var(--bg-panel);
+  border-radius: var(--radius-md);
+  padding: 16px;
   display: flex;
-  gap: 16px;
-  align-items: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--color-border);
+  transition: all 0.15s;
 }
 
 .project-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  border-color: var(--text-muted);
+  background: var(--bg-main);
 }
 
-.project-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+.project-initials {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--bg-sidebar);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-  font-weight: bold;
+  font-size: 16px;
+  font-weight: 600;
   flex-shrink: 0;
 }
 
-.project-info {
+.project-details {
   flex: 1;
   min-width: 0;
 }
 
 .project-name {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .project-path {
-  font-size: 13px;
-  color: #666;
+  font-size: 12px;
+  color: var(--text-muted);
   font-family: monospace;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   word-break: break-all;
+  line-height: 1.4;
 }
 
 .project-remote {
-  font-size: 12px;
-  color: #11998e;
+  font-size: 11px;
+  color: var(--color-primary);
   font-family: monospace;
   word-break: break-all;
+  line-height: 1.4;
 }
 
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: 80px 20px;
 }
 
 .empty-icon {
-  font-size: 64px;
-  margin-bottom: 24px;
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.6;
 }
 
 .empty-state h2 {
-  font-size: 20px;
-  color: #1a1a2e;
-  margin-bottom: 12px;
+  font-size: 16px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  font-weight: 600;
 }
 
 .empty-state p {
-  color: #666;
-  line-height: 1.6;
-  margin-bottom: 20px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  font-size: 13px;
 }
 </style>
