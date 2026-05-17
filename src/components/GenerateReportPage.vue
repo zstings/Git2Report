@@ -507,7 +507,7 @@ onMounted(async () => {
 .git-logs-list {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 16px 20px 16px 20px;
 }
 
 .log-item {
@@ -583,7 +583,7 @@ onMounted(async () => {
 }
 
 .notes-section {
-  padding: 16px 20px;
+  padding: 16px 20px 12px;
   border-top: 1px solid var(--color-border);
   flex-shrink: 0;
 }
@@ -608,32 +608,38 @@ onMounted(async () => {
   box-sizing: border-box;
   color: var(--text-regular);
   background: var(--bg-main);
-  transition: border-color 0.15s;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .notes-textarea:focus {
   outline: none;
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
 .archive-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
-  background: rgba(37, 99, 235, 0.05);
-  border-top: 1px solid var(--color-border);
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(37, 99, 235, 0.06);
+  border-radius: 20px;
+  margin: 0 auto 12px;
   flex-shrink: 0;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 4px;
 }
 
 .archive-icon {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--color-primary);
 }
 
 .archive-text {
-  color: var(--text-regular);
-  font-size: 13px;
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 500;
 }
 
