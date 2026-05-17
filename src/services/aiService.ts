@@ -1,4 +1,5 @@
 import { http, storage, fs, path } from "vokex.app";
+import { todaySystemPrompt } from "../utils";
 
 export interface AIConfig {
   apiKey: string;
@@ -63,19 +64,31 @@ export class AIService {
       throw new Error("请先配置 AI 服务");
     }
 
-    const systemPrompt = `你是一位开发主管。严格基于数据总结，严禁捏造。对包含多任务的提交信息进行原子性拆分，对同模块的多次提交进行逻辑合并。如果提交信息极短（如 "1"），必须深度分析 diff_start ... diff_end 块的代码行变动以推断开发者真实意图并补偿专业文字。
+    const systemPrompt = todaySystemPrompt(this.config);
 
-格式要求：输出标准的 Markdown。包含 ## 今日工作总结（按项目/模块分类）和 ## 明日计划（智能推导）。
-
-${this.config.systemPreference ? `用户偏好：${this.config.systemPreference}` : ""}`;
-
-    const userPrompt = `Git 提交日志：
-${gitLogs}
-
-用户补充工作内容：
-${userNotes || "无"}`;
+    const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || "无"}`;
 
     try {
+      // console.log('systemPrompt:', `${this.config.baseUrl}/chat/completions`);
+      // console.log('systemPrompt:', {
+      //     model: this.config.model,
+      //     messages: [
+      //       {
+      //         role: "system",
+      //         content: systemPrompt,
+      //       },
+      //       {
+      //         role: "user",
+      //         content: userPrompt,
+      //       },
+      //     ],
+      //     temperature: 0.7,
+      //   });
+      //   console.log('userPrompt:', {
+      //       "Authorization": `Bearer ${this.config.apiKey}`,
+      //       "Content-Type": "application/json",
+      //     });
+      //     debugger;
       const response = await http.post(
         `${this.config.baseUrl}/chat/completions`,
         {
