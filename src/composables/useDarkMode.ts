@@ -1,7 +1,21 @@
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
+import { browserWindow } from 'vokex.app'
 
 const STORAGE_KEY = 'git2report-theme'
 const isDark = ref(false)
+
+async function applyTheme() {
+  if (isDark.value) {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.classList.remove('dark')
+  }
+  
+  const win = browserWindow.getCurrentWindow()
+  if (win) {
+    await win.setTheme(isDark.value ? 'dark' : 'light')
+  }
+}
 
 function initTheme() {
   const stored = localStorage.getItem(STORAGE_KEY)
@@ -13,17 +27,9 @@ function initTheme() {
   applyTheme()
 }
 
-function applyTheme() {
-  if (isDark.value) {
-    document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('dark')
-  }
-}
-
-function toggleDark() {
+async function toggleDark() {
   isDark.value = !isDark.value
-  applyTheme()
+  await applyTheme()
   localStorage.setItem(STORAGE_KEY, isDark.value ? 'dark' : 'light')
 }
 
