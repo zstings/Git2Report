@@ -127,15 +127,14 @@ onMounted(() => {
 .main-content {
   display: flex;
   height: 100%;
-  max-width: 1100px;
   margin: 0 auto;
-  padding: 40px 24px;
+  padding: 24px;
   gap: 60px;
+  flex-direction: row-reverse;
 }
 
 .left-section {
   flex: 1;
-  padding-top: 40px;
 }
 
 .page-header {
