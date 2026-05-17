@@ -1,4 +1,4 @@
-import { http, storage, fs, path } from "vokex.app";
+import { http, safeStorage, fs, path } from "vokex.app";
 import { todaySystemPrompt } from "../utils";
 
 export interface AIConfig {
@@ -39,10 +39,13 @@ export class AIService {
 
   async loadConfig(): Promise<AIConfig | null> {
     try {
-      const savedConfig = await storage.getData("aiConfig");
-      if (savedConfig) {
-        this.config = savedConfig as AIConfig;
-        return this.config;
+      const hasConfig = await safeStorage.has("aiConfig");
+      if (hasConfig) {
+        const savedConfig = await safeStorage.getItem("aiConfig");
+        if (savedConfig) {
+          this.config = savedConfig as AIConfig;
+          return this.config;
+        }
       }
       return null;
     } catch (error) {
@@ -53,7 +56,7 @@ export class AIService {
 
   async saveConfig(config: AIConfig): Promise<void> {
     this.config = config;
-    await storage.setData("aiConfig", config);
+    await safeStorage.setItem("aiConfig", config);
   }
 
   async generateDailyReport(
@@ -121,13 +124,10 @@ export class AIService {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
     let fullText = "";
-    let chunkCount = 0;
 
     if (!reader) {
       throw new Error("无法获取响应流");
     }
-
-    console.log('🔄 开始解析 SSE 流...');
 
     try {
       while (true) {
@@ -135,9 +135,6 @@ export class AIService {
         if (done) break;
 
         const rawChunk = decoder.decode(value, { stream: true });
-        chunkCount++;
-        console.log(`📦 收到数据块 ${chunkCount}:`, rawChunk.substring(0, 100));
-
         const lines = rawChunk.split("\n");
 
         for (const line of lines) {
@@ -152,7 +149,6 @@ export class AIService {
               if (content) {
                 fullText += content;
                 onChunk(content);
-                console.log(`✏️  输出片段 ${content.length} 字:`, content.substring(0, 20));
               }
             } catch (e) {
               console.warn("解析 SSE 数据失败:", e);
@@ -164,7 +160,6 @@ export class AIService {
       reader.releaseLock();
     }
 
-    console.log(`✅ SSE 流解析完成，共 ${chunkCount} 个数据块`);
     return fullText;
   }
 
@@ -254,18 +249,17 @@ ${archiveSummaries
       if (exists) {
         const rawContent = await fs.readFile(archivePath, { encoding: "utf8" });
 
-        console.log('rawContent:', rawContent);
-        let content: string;
+        let fileContent: string;
         
         if (typeof rawContent === 'string') {
-          content = rawContent;
+          fileContent = rawContent;
         } else {
           console.warn('读取存档文件返回了不支持的类型');
           archive = {};
         }
         
-        if (content) {
-          archive = JSON.parse(content);
+        if (fileContent) {
+          archive = JSON.parse(fileContent);
         }
       }
 
@@ -379,7 +373,7 @@ ${archiveSummaries
         }
 
         if (projectPath) {
-          const projectName = await path.basename(projectPath);
+          const projectName = path.basename(projectPath);
           logs.push({
             projectPath,
             projectName,
