@@ -85,22 +85,37 @@ diff_end`
     }
   }
 
-  async function generateDailyReport() {
+  async function generateDailyReport(onChunk?: (chunk: string) => void) {
     if (!gitLogsText.value && !userNotes.value.trim()) {
       return '暂无内容可生成报告'
     }
 
     aiLoading.value = true
     try {
-      const report = await aiService.generateDailyReport(gitLogsText.value, userNotes.value)
-      generatedReport.value = report
+      if (onChunk) {
+        generatedReport.value = ''
+      }
+      const report = await aiService.generateDailyReport(
+        gitLogsText.value, 
+        userNotes.value,
+        (chunk) => {
+          if (onChunk) {
+            onChunk(chunk)
+          } else {
+            generatedReport.value += chunk
+          }
+        }
+      )
+      if (!onChunk) {
+        generatedReport.value = report
+      }
       return report
     } finally {
       aiLoading.value = false
     }
   }
 
-  async function generateCycleReport(reportPath: string, type: 'week' | 'month') {
+  async function generateCycleReport(reportPath: string, type: 'week' | 'month', onChunk?: (chunk: string) => void) {
     const dates = getCycleDateRange(type, selectedDate.value)
     const summaries: ArchiveSummary[] = []
 
@@ -120,8 +135,23 @@ diff_end`
 
     aiLoading.value = true
     try {
-      const report = await aiService.generateCycleReport(summaries, type)
-      generatedReport.value = report
+      if (onChunk) {
+        generatedReport.value = ''
+      }
+      const report = await aiService.generateCycleReport(
+        summaries, 
+        type,
+        (chunk) => {
+          if (onChunk) {
+            onChunk(chunk)
+          } else {
+            generatedReport.value += chunk
+          }
+        }
+      )
+      if (!onChunk) {
+        generatedReport.value = report
+      }
       return report
     } finally {
       aiLoading.value = false

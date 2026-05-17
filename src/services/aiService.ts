@@ -59,6 +59,7 @@ export class AIService {
   async generateDailyReport(
     gitLogs: string,
     userNotes: string,
+    onChunk?: (chunk: string) => void,
   ): Promise<string> {
     if (!this.config) {
       throw new Error("请先配置 AI 服务");
@@ -69,65 +70,108 @@ export class AIService {
     const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || "无"}`;
 
     try {
-      // console.log('systemPrompt:', `${this.config.baseUrl}/chat/completions`);
-      // console.log('systemPrompt:', {
-      //     model: this.config.model,
-      //     messages: [
-      //       {
-      //         role: "system",
-      //         content: systemPrompt,
-      //       },
-      //       {
-      //         role: "user",
-      //         content: userPrompt,
-      //       },
-      //     ],
-      //     temperature: 0.7,
-      //   });
-      //   console.log('userPrompt:', {
-      //       "Authorization": `Bearer ${this.config.apiKey}`,
-      //       "Content-Type": "application/json",
-      //     });
-      //     debugger;
-      const response = await http.post(
+      const response = await http.fetch(
         `${this.config.baseUrl}/chat/completions`,
         {
-          model: this.config.model,
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: userPrompt,
-            },
-          ],
-          temperature: 0.7,
-        },
-        {
+          method: 'POST',
+          body: {
+            model: this.config.model,
+            messages: [
+              {
+                role: "system",
+                content: systemPrompt,
+              },
+              {
+                role: "user",
+                content: userPrompt,
+              },
+            ],
+            temperature: 0.7,
+            stream: !!onChunk,
+          },
           headers: {
             "Authorization": `Bearer ${this.config.apiKey}`,
-            "Content-Type": "application/json",
           },
+          stream: !!onChunk,
+          timeout: 120,
         },
       );
 
       if (!response.ok) {
-        throw new Error(`API 请求失败: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
       }
 
-      const data = await response.json();
-      return data.choices[0].message.content;
+      if (onChunk) {
+        return this.parseSSEStream(response, onChunk);
+      } else {
+        const data = await response.json();
+        return data.choices[0].message.content;
+      }
     } catch (error) {
       console.error("生成日报失败:", error);
-      throw new Error(`生成日报失败: ${error}`);
+      throw error;
     }
+  }
+
+  private async parseSSEStream(
+    response: Response,
+    onChunk: (chunk: string) => void,
+  ): Promise<string> {
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let fullText = "";
+    let chunkCount = 0;
+
+    if (!reader) {
+      throw new Error("无法获取响应流");
+    }
+
+    console.log('🔄 开始解析 SSE 流...');
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const rawChunk = decoder.decode(value, { stream: true });
+        chunkCount++;
+        console.log(`📦 收到数据块 ${chunkCount}:`, rawChunk.substring(0, 100));
+
+        const lines = rawChunk.split("\n");
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === "data: [DONE]") continue;
+
+          if (trimmed.startsWith("data: ")) {
+            try {
+              const jsonStr = trimmed.slice(6);
+              const data = JSON.parse(jsonStr);
+              const content = data.choices?.[0]?.delta?.content || "";
+              if (content) {
+                fullText += content;
+                onChunk(content);
+                console.log(`✏️  输出片段 ${content.length} 字:`, content.substring(0, 20));
+              }
+            } catch (e) {
+              console.warn("解析 SSE 数据失败:", e);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    console.log(`✅ SSE 流解析完成，共 ${chunkCount} 个数据块`);
+    return fullText;
   }
 
   async generateCycleReport(
     archiveSummaries: ArchiveSummary[],
     type: "week" | "month",
+    onChunk?: (chunk: string) => void,
   ): Promise<string> {
     if (!this.config) {
       throw new Error("请先配置 AI 服务");
@@ -150,39 +194,47 @@ ${archiveSummaries
   .join("\n")}`;
 
     try {
-      const response = await http.post(
+      const response = await http.fetch(
         `${this.config.baseUrl}/chat/completions`,
         {
-          model: this.config.model,
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: userPrompt,
-            },
-          ],
-          temperature: 0.7,
-        },
-        {
+          method: 'POST',
+          body: {
+            model: this.config.model,
+            messages: [
+              {
+                role: "system",
+                content: systemPrompt,
+              },
+              {
+                role: "user",
+                content: userPrompt,
+              },
+            ],
+            temperature: 0.7,
+            stream: !!onChunk,
+          },
           headers: {
             "Authorization": `Bearer ${this.config.apiKey}`,
-            "Content-Type": "application/json",
           },
+          stream: !!onChunk,
+          timeout: 120,
         },
       );
 
       if (!response.ok) {
-        throw new Error(`API 请求失败: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
       }
 
-      const data = await response.json();
-      return data.choices[0].message.content;
+      if (onChunk) {
+        return this.parseSSEStream(response, onChunk);
+      } else {
+        const data = await response.json();
+        return data.choices[0].message.content;
+      }
     } catch (error) {
       console.error("生成周期报告失败:", error);
-      throw new Error(`生成周期报告失败: ${error}`);
+      throw error;
     }
   }
 

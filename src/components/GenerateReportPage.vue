@@ -47,32 +47,37 @@ async function handleLoadGitLogs() {
 }
 
 async function handleGenerateReport() {
-  if (!aiConfig.value.apiKey) {
-    await dialog.info({
-      title: '提示',
-      message: '请先配置 AI 服务'
-    })
-    showAIConfig.value = true
-    return
-  }
-
-  isGenerating.value = true
-  try {
-    if (report.selectedReportType.value === 'daily') {
-      await report.generateDailyReport()
-    } else {
-      const type = report.selectedReportType.value === 'weekly' ? 'week' : 'month'
-      await report.generateCycleReport(appConfig.value.reportPath, type)
+    if (!aiConfig.value.apiKey) {
+      await dialog.info({
+        title: '提示',
+        message: '请先配置 AI 服务'
+      })
+      showAIConfig.value = true
+      return
     }
-  } catch (error) {
-    await dialog.error({
-      title: '生成失败',
-      message: String(error)
-    })
-  } finally {
-    isGenerating.value = false
+
+    isGenerating.value = true
+    report.generatedReport.value = ''
+    try {
+      if (report.selectedReportType.value === 'daily') {
+        await report.generateDailyReport((chunk) => {
+          report.generatedReport.value += chunk
+        })
+      } else {
+        const type = report.selectedReportType.value === 'weekly' ? 'week' : 'month'
+        await report.generateCycleReport(appConfig.value.reportPath, type, (chunk) => {
+          report.generatedReport.value += chunk
+        })
+      }
+    } catch (error) {
+      await dialog.error({
+        title: '生成失败',
+        message: String(error)
+      })
+    } finally {
+      isGenerating.value = false
+    }
   }
-}
 
 async function handleCopyReport() {
   if (!report.generatedReport.value) return
