@@ -187,13 +187,13 @@ ${archiveSummaries
 
       const exists = await fs.exists(archivePath);
       if (exists) {
-        const rawContent = await fs.readFile(archivePath, { encoding: "utf-8" });
+        const rawContent = await fs.readFile(archivePath, { encoding: "utf8" });
+
+        console.log('rawContent:', rawContent);
         let content: string;
         
         if (typeof rawContent === 'string') {
           content = rawContent;
-        } else if (rawContent instanceof Uint8Array) {
-          content = new TextDecoder().decode(rawContent);
         } else {
           console.warn('读取存档文件返回了不支持的类型');
           archive = {};
@@ -224,13 +224,11 @@ ${archiveSummaries
         return {};
       }
 
-      const rawContent = await fs.readFile(archivePath, { encoding: "utf-8" });
+      const rawContent = await fs.readFile(archivePath, { encoding: "utf8" });
       let content: string;
       
       if (typeof rawContent === 'string') {
         content = rawContent;
-      } else if (rawContent instanceof Uint8Array) {
-        content = new TextDecoder().decode(rawContent);
       } else {
         console.warn('读取存档文件返回了不支持的类型');
         return {};
@@ -265,13 +263,11 @@ ${archiveSummaries
         return [];
       }
 
-      const rawContent = await fs.readFile(logPath, { encoding: "utf-8" });
+      const rawContent = await fs.readFile(logPath, { encoding: "utf8" });
       let content: string;
       
       if (typeof rawContent === 'string') {
         content = rawContent;
-      } else if (rawContent instanceof Uint8Array) {
-        content = new TextDecoder().decode(rawContent);
       } else {
         console.warn('读取日志文件返回了不支持的类型');
         return [];

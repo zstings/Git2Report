@@ -50,7 +50,7 @@ async function handleGenerateReport() {
   if (!aiConfig.value.apiKey) {
     await dialog.info({
       title: '提示',
-      body: '请先配置 AI 服务'
+      message: '请先配置 AI 服务'
     })
     showAIConfig.value = true
     return
@@ -67,7 +67,7 @@ async function handleGenerateReport() {
   } catch (error) {
     await dialog.error({
       title: '生成失败',
-      body: String(error)
+      message: String(error)
     })
   } finally {
     isGenerating.value = false
@@ -79,7 +79,7 @@ async function handleCopyReport() {
   await clipboard.writeText(report.generatedReport.value)
   await dialog.info({
     title: '成功',
-    body: '报告已复制到剪贴板'
+    message: '报告已复制到剪贴板'
   })
 }
 
@@ -87,7 +87,7 @@ async function handleSaveReport() {
   if (!appConfig.value.reportPath) {
     await dialog.info({
       title: '提示',
-      body: '请先在初始化页面设置报告存放目录'
+      message: '请先在初始化页面设置报告存放目录'
     })
     return
   }
@@ -95,7 +95,7 @@ async function handleSaveReport() {
   if (report.selectedReportType.value !== 'daily') {
     await dialog.info({
       title: '提示',
-      body: '仅日报可以存档'
+      message: '仅日报可以存档'
     })
     return
   }
@@ -105,12 +105,12 @@ async function handleSaveReport() {
     await report.saveDailyReport(appConfig.value.reportPath)
     await dialog.info({
       title: '成功',
-      body: '报告已存档'
+      message: '报告已存档'
     })
   } catch (error) {
     await dialog.error({
       title: '保存失败',
-      body: String(error)
+      message: String(error)
     })
   } finally {
     isSaving.value = false
@@ -122,7 +122,7 @@ async function handleSaveAIConfig() {
   showAIConfig.value = false
   await dialog.info({
     title: '成功',
-    body: '配置已保存'
+    message: '配置已保存'
   })
 }
 
