@@ -43,6 +43,7 @@ if [ -n "$PROJECT_PATH" ]; then
 
     # 5. 格式化输出并追加到当日文件
     {
+        echo "----------\${HASH}-o----------"
         echo "项目：$PROJECT_PATH"
         echo "hash：$HASH"
         echo "时间：$DATE"
@@ -50,7 +51,7 @@ if [ -n "$PROJECT_PATH" ]; then
         echo "diff_start"
         echo "$DIFF_INFO"
         echo "diff_end"
-        echo "------------------------"
+        echo "----------\${HASH}-e----------"
     } >> "$RECORD_FILE"
 fi`;
 export default git_commit_history;
