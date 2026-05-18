@@ -96,7 +96,7 @@ export class GitService {
     }
   }
 
-  async scanProjectsFromLogs(logDir: string): Promise<GitProject[]> {
+  async scanProjectsFromLogs(logDir: string, todayOnly: boolean = false): Promise<GitProject[]> {
     try {
       const originalDir = await path.join(logDir, 'original')
       const exists = await fs.exists(originalDir)
@@ -105,11 +105,16 @@ export class GitService {
         return []
       }
 
-      const files = await fs.glob({
+      let files = await fs.glob({
         pattern: '*.txt',
         cwd: originalDir,
         absolute: true,
       })
+
+      if (todayOnly) {
+        const today = new Date().toISOString().split('T')[0]
+        files = files.filter(file => file.includes(today))
+      }
 
       const projectMap = new Map<string, string>()
 
@@ -122,7 +127,6 @@ export class GitService {
             if (line.startsWith('项目：')) {
               const projectPath = line.substring('项目：'.length).trim()
               if (projectPath && !projectMap.has(projectPath)) {
-                // 尝试获取远程仓库地址
                 try {
                   const remoteResult = await shell.exec(
                     'git',
@@ -139,7 +143,6 @@ export class GitService {
                   projectMap.set(projectPath, 'none')
                 }
               }
-              break // 一个文件只取第一个项目
             }
           }
         } catch (error) {

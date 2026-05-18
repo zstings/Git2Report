@@ -4,10 +4,10 @@ import { useProjects } from '../composables/useProjects'
 import { useConfig } from '../composables/useConfig'
 import { dialog } from 'vokex.app'
 
-const { loading, filteredProjects, searchQuery, loadProjects, setSearchQuery } = useProjects()
+const { loading, filteredProjects, searchQuery, loadProjects, scanAllProjects, setSearchQuery } = useProjects()
 const { config, loadConfig } = useConfig()
 
-async function handleScanLogs() {
+async function handleScanAllLogs() {
   if (!config.value.reportPath) {
     await dialog.info({
       title: '提示',
@@ -16,13 +16,10 @@ async function handleScanLogs() {
     return
   }
 
-  await loadProjects(config.value.reportPath)
+  const count = await scanAllProjects(config.value.reportPath)
   await dialog.info({
     title: '完成',
-    message:
-      filteredProjects.value.length > 0
-        ? `扫描完成，发现 ${filteredProjects.value.length} 个项目`
-        : '扫描完成，未发现项目',
+    message: count > 0 ? `扫描完成，共发现 ${count} 个项目` : '扫描完成，未发现项目',
   })
 }
 
@@ -41,7 +38,7 @@ onMounted(async () => {
         <h1>已记录的项目</h1>
         <p class="subtitle">所有已被 Git 钩子记录的项目列表</p>
       </div>
-      <button class="btn-scan" @click="handleScanLogs" :disabled="loading">扫描日志</button>
+      <button class="btn-scan" @click="handleScanAllLogs" :disabled="loading">全量扫描</button>
     </div>
 
     <div class="search-section">
