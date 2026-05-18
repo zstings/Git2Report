@@ -34,7 +34,7 @@ async function handleLoadGitLogs() {
     if (!appConfig.value.reportPath) {
       return
     }
-    
+
     await report.loadGitLogs(appConfig.value.reportPath, report.selectedDate.value)
 
     if (report.hasArchivedReport(report.selectedDate.value)) {
@@ -48,44 +48,44 @@ async function handleLoadGitLogs() {
 }
 
 async function handleGenerateReport() {
-    if (!aiConfig.value.apiKey) {
-      await dialog.info({
-        title: '提示',
-        message: '请先配置 AI 服务'
-      })
-      showAIConfig.value = true
-      return
-    }
-
-    isGenerating.value = true
-    report.generatedReport.value = ''
-    try {
-      if (report.selectedReportType.value === 'daily') {
-        await report.generateDailyReport((chunk) => {
-          report.generatedReport.value += chunk
-        })
-      } else {
-        const type = report.selectedReportType.value === 'weekly' ? 'week' : 'month'
-        await report.generateCycleReport(appConfig.value.reportPath, type, (chunk) => {
-          report.generatedReport.value += chunk
-        })
-      }
-    } catch (error) {
-      await dialog.error({
-        title: '生成失败',
-        message: String(error)
-      })
-    } finally {
-      isGenerating.value = false
-    }
+  if (!aiConfig.value.apiKey) {
+    await dialog.info({
+      title: '提示',
+      message: '请先配置 AI 服务',
+    })
+    showAIConfig.value = true
+    return
   }
+
+  isGenerating.value = true
+  report.generatedReport.value = ''
+  try {
+    if (report.selectedReportType.value === 'daily') {
+      await report.generateDailyReport((chunk) => {
+        report.generatedReport.value += chunk
+      })
+    } else {
+      const type = report.selectedReportType.value === 'weekly' ? 'week' : 'month'
+      await report.generateCycleReport(appConfig.value.reportPath, type, (chunk) => {
+        report.generatedReport.value += chunk
+      })
+    }
+  } catch (error) {
+    await dialog.error({
+      title: '生成失败',
+      message: String(error),
+    })
+  } finally {
+    isGenerating.value = false
+  }
+}
 
 async function handleCopyReport() {
   if (!report.generatedReport.value) return
   await clipboard.writeText(report.generatedReport.value)
   await dialog.info({
     title: '成功',
-    message: '报告已复制到剪贴板'
+    message: '报告已复制到剪贴板',
   })
 }
 
@@ -93,7 +93,7 @@ async function handleSaveReport() {
   if (!appConfig.value.reportPath) {
     await dialog.info({
       title: '提示',
-      message: '请先在初始化页面设置报告存放目录'
+      message: '请先在初始化页面设置报告存放目录',
     })
     return
   }
@@ -101,7 +101,7 @@ async function handleSaveReport() {
   if (report.selectedReportType.value !== 'daily') {
     await dialog.info({
       title: '提示',
-      message: '仅日报可以存档'
+      message: '仅日报可以存档',
     })
     return
   }
@@ -111,12 +111,12 @@ async function handleSaveReport() {
     await report.saveDailyReport(appConfig.value.reportPath)
     await dialog.info({
       title: '成功',
-      message: '报告已存档'
+      message: '报告已存档',
     })
   } catch (error) {
     await dialog.error({
       title: '保存失败',
-      message: String(error)
+      message: String(error),
     })
   } finally {
     isSaving.value = false
@@ -128,7 +128,7 @@ async function handleSaveAIConfig() {
   showAIConfig.value = false
   await dialog.info({
     title: '成功',
-    message: '配置已保存'
+    message: '配置已保存',
   })
 }
 
@@ -181,10 +181,7 @@ watch(report.selectedDate, async () => {
 })
 
 onMounted(async () => {
-  await Promise.all([
-    loadAIConfig(),
-    loadAppConfig()
-  ])
+  await Promise.all([loadAIConfig(), loadAppConfig()])
 
   if (appConfig.value.reportPath) {
     await report.loadDailyArchive(appConfig.value.reportPath)
@@ -200,11 +197,7 @@ onMounted(async () => {
         <div class="panel-header">
           <div class="date-navigator">
             <button class="btn-icon" @click="changeDate(-1)" title="前一天">‹</button>
-            <input
-              type="date"
-              class="date-input"
-              v-model="report.selectedDate.value"
-            />
+            <input type="date" class="date-input" v-model="report.selectedDate.value" />
             <button class="btn-icon" @click="changeDate(1)" title="后一天">›</button>
           </div>
         </div>
@@ -219,11 +212,7 @@ onMounted(async () => {
         </div>
 
         <div v-else class="git-logs-list">
-          <div
-            v-for="(log, index) in report.gitLogs.value"
-            :key="index"
-            class="log-item"
-          >
+          <div v-for="(log, index) in report.gitLogs.value" :key="index" class="log-item">
             <div class="log-time-marker">
               <span class="time">{{ formatTime(log.date) }}</span>
               <span class="dot"></span>
@@ -247,7 +236,13 @@ onMounted(async () => {
           />
         </div>
 
-        <div v-if="report.selectedReportType.value === 'daily' && report.hasArchivedReport(report.selectedDate.value)" class="archive-badge">
+        <div
+          v-if="
+            report.selectedReportType.value === 'daily' &&
+            report.hasArchivedReport(report.selectedDate.value)
+          "
+          class="archive-badge"
+        >
           <span class="archive-icon">✓</span>
           <span class="archive-text">该日期已有存档报告</span>
         </div>
@@ -278,16 +273,10 @@ onMounted(async () => {
               月报
             </button>
           </div>
-          <button class="btn-icon" @click="showAIConfig = true" title="AI 配置">
-            ⚙️
-          </button>
+          <button class="btn-icon" @click="showAIConfig = true" title="AI 配置">⚙️</button>
         </div>
 
-        <button
-          class="generate-btn"
-          @click="handleGenerateReport"
-          :disabled="isGenerating"
-        >
+        <button class="generate-btn" @click="handleGenerateReport" :disabled="isGenerating">
           <span v-if="isGenerating" class="spinner small"></span>
           {{ isGenerating ? '生成中...' : '智能 AI 一键生成' }}
         </button>
@@ -317,15 +306,16 @@ onMounted(async () => {
             placeholder="点击上方按钮生成报告..."
           />
           <div v-else class="report-preview markdown-body">
-            <div v-if="report.generatedReport.value" v-html="renderMarkdown(report.generatedReport.value)"></div>
+            <div
+              v-if="report.generatedReport.value"
+              v-html="renderMarkdown(report.generatedReport.value)"
+            ></div>
             <div v-else class="placeholder-text">点击上方按钮生成报告...</div>
           </div>
         </div>
 
         <div v-if="report.generatedReport.value" class="actions-bar">
-          <button class="btn-secondary" @click="handleCopyReport">
-            一键复制
-          </button>
+          <button class="btn-secondary" @click="handleCopyReport">一键复制</button>
           <button
             v-if="report.selectedReportType.value === 'daily'"
             class="btn-primary"
@@ -347,27 +337,15 @@ onMounted(async () => {
         <div class="modal-body">
           <div class="form-group">
             <label>API Key</label>
-            <input
-              v-model="aiConfig.apiKey"
-              type="password"
-              placeholder="请输入 API Key"
-            />
+            <input v-model="aiConfig.apiKey" type="password" placeholder="请输入 API Key" />
           </div>
           <div class="form-group">
             <label>Base URL</label>
-            <input
-              v-model="aiConfig.baseUrl"
-              type="text"
-              placeholder="https://api.openai.com/v1"
-            />
+            <input v-model="aiConfig.baseUrl" type="text" placeholder="https://api.openai.com/v1" />
           </div>
           <div class="form-group">
             <label>Model</label>
-            <input
-              v-model="aiConfig.model"
-              type="text"
-              placeholder="gpt-3.5-turbo"
-            />
+            <input v-model="aiConfig.model" type="text" placeholder="gpt-3.5-turbo" />
           </div>
           <div class="form-group">
             <label>个人偏好（选填）</label>
@@ -495,7 +473,9 @@ onMounted(async () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-state {
@@ -608,7 +588,9 @@ onMounted(async () => {
   box-sizing: border-box;
   color: var(--text-regular);
   background: var(--bg-main);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .notes-textarea:focus {
@@ -976,9 +958,15 @@ onMounted(async () => {
   font-weight: 600;
 }
 
-:deep(.markdown-body) h1 { font-size: 18px; }
-:deep(.markdown-body) h2 { font-size: 16px; }
-:deep(.markdown-body) h3 { font-size: 15px; }
+:deep(.markdown-body) h1 {
+  font-size: 18px;
+}
+:deep(.markdown-body) h2 {
+  font-size: 16px;
+}
+:deep(.markdown-body) h3 {
+  font-size: 15px;
+}
 
 :deep(.markdown-body) p {
   margin: 8px 0;

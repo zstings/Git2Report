@@ -1,43 +1,37 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
-import { useProjects } from "../composables/useProjects";
-import { useConfig } from "../composables/useConfig";
-import { dialog } from "vokex.app";
+import { onMounted } from 'vue'
+import { useProjects } from '../composables/useProjects'
+import { useConfig } from '../composables/useConfig'
+import { dialog } from 'vokex.app'
 
-const {
-  loading,
-  filteredProjects,
-  searchQuery,
-  loadProjects,
-  setSearchQuery,
-} = useProjects();
-const { config, loadConfig } = useConfig();
+const { loading, filteredProjects, searchQuery, loadProjects, setSearchQuery } = useProjects()
+const { config, loadConfig } = useConfig()
 
 async function handleScanLogs() {
   if (!config.value.reportPath) {
     await dialog.info({
-      title: "提示",
-      message: "请先在初始化页面设置报告存放目录",
-    });
-    return;
+      title: '提示',
+      message: '请先在初始化页面设置报告存放目录',
+    })
+    return
   }
 
-  await loadProjects(config.value.reportPath);
+  await loadProjects(config.value.reportPath)
   await dialog.info({
-    title: "完成",
+    title: '完成',
     message:
       filteredProjects.value.length > 0
         ? `扫描完成，发现 ${filteredProjects.value.length} 个项目`
-        : "扫描完成，未发现项目",
-  });
+        : '扫描完成，未发现项目',
+  })
 }
 
 onMounted(async () => {
-  await loadConfig();
+  await loadConfig()
   if (config.value.reportPath) {
-    await loadProjects(config.value.reportPath);
+    await loadProjects(config.value.reportPath)
   }
-});
+})
 </script>
 
 <template>
@@ -75,7 +69,7 @@ onMounted(async () => {
     <div v-else-if="filteredProjects.length > 0" class="projects-grid">
       <div v-for="(project, index) in filteredProjects" :key="index" class="project-card">
         <div class="project-initials">
-          {{ project.localPath.split(/[\\/]/).pop()?.charAt(0).toUpperCase() || "?" }}
+          {{ project.localPath.split(/[\\/]/).pop()?.charAt(0).toUpperCase() || '?' }}
         </div>
         <div class="project-details">
           <div class="project-name">

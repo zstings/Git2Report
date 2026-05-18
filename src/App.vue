@@ -1,26 +1,26 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import InitHooksPage from "./components/InitHooksPage.vue";
-import ProjectsPage from "./components/ProjectsPage.vue";
-import GenerateReportPage from "./components/GenerateReportPage.vue";
-import { useDarkMode } from "./composables/useDarkMode";
+import { ref, onMounted } from 'vue'
+import InitHooksPage from './components/InitHooksPage.vue'
+import ProjectsPage from './components/ProjectsPage.vue'
+import GenerateReportPage from './components/GenerateReportPage.vue'
+import { useDarkMode } from './composables/useDarkMode'
 
-type Page = "init" | "projects" | "report";
+type Page = 'init' | 'projects' | 'report'
 
-const currentPage = ref<Page>("init");
-const projectsPageKey = ref(0);
-const { isDark, initTheme, toggleDark } = useDarkMode();
+const currentPage = ref<Page>('init')
+const projectsPageKey = ref(0)
+const { isDark, initTheme, toggleDark } = useDarkMode()
 
 function navigateTo(page: Page) {
-  currentPage.value = page;
-  if (page === "projects") {
-    projectsPageKey.value += 1;
+  currentPage.value = page
+  if (page === 'projects') {
+    projectsPageKey.value += 1
   }
 }
 
 onMounted(() => {
-  initTheme();
-});
+  initTheme()
+})
 </script>
 
 <template>
@@ -32,7 +32,11 @@ onMounted(() => {
             <h1 class="app-title">Git2Report</h1>
             <p class="app-subtitle">工作报告生成器</p>
           </div>
-          <button class="theme-toggle" @click="toggleDark" :title="isDark ? '切换到浅色模式' : '切换到暗黑模式'">
+          <button
+            class="theme-toggle"
+            @click="toggleDark"
+            :title="isDark ? '切换到浅色模式' : '切换到暗黑模式'"
+          >
             {{ isDark ? '☀️' : '🌙' }}
           </button>
         </div>
@@ -109,7 +113,7 @@ html.dark {
 html,
 body {
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: var(--bg-main);
   height: 100%;
   overflow: hidden;

@@ -9,7 +9,7 @@ export function useAI() {
     apiKey: '',
     baseUrl: 'https://api.openai.com/v1',
     model: 'gpt-3.5-turbo',
-    systemPreference: ''
+    systemPreference: '',
   })
 
   async function loadConfig() {
@@ -27,6 +27,6 @@ export function useAI() {
     loading,
     config,
     loadConfig,
-    saveConfig
+    saveConfig,
   }
 }

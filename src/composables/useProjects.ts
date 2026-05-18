@@ -13,7 +13,7 @@ export function useProjects() {
       return projects.value
     }
     const query = searchQuery.value.toLowerCase().trim()
-    return projects.value.filter(project => {
+    return projects.value.filter((project) => {
       const projectName = project.localPath.split(/[\\/]/).pop()?.toLowerCase() || ''
       const path = project.localPath.toLowerCase()
       const remote = project.remoteUrl.toLowerCase()
@@ -46,6 +46,6 @@ export function useProjects() {
     filteredProjects,
     searchQuery,
     loadProjects,
-    setSearchQuery
+    setSearchQuery,
   }
 }

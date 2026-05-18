@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useConfig } from '../composables/useConfig';
-import { useGit } from '../composables/useGit';
-import { dialog } from 'vokex.app';
+import { onMounted } from 'vue'
+import { useConfig } from '../composables/useConfig'
+import { useGit } from '../composables/useGit'
+import { dialog } from 'vokex.app'
 
-const { config, loading: configLoading, loadConfig, saveConfig } = useConfig();
-const { loading: gitLoading, initGitHooks } = useGit();
+const { config, loading: configLoading, loadConfig, saveConfig } = useConfig()
+const { loading: gitLoading, initGitHooks } = useGit()
 
-const isLoading = () => configLoading.value || gitLoading.value;
+const isLoading = () => configLoading.value || gitLoading.value
 
 async function handleSelectPath() {
   const result = await dialog.showOpenDialog({
     directory: true,
-    title: '选择报告存放目录'
-  });
-  
+    title: '选择报告存放目录',
+  })
+
   if (result && typeof result === 'string' && result.length > 0) {
-    config.value.reportPath = result;
-    await saveConfig();
+    config.value.reportPath = result
+    await saveConfig()
   }
 }
 
@@ -25,21 +25,21 @@ async function handleInit() {
   if (!config.value.reportPath) {
     await dialog.info({
       title: '提示',
-      message: '请先设置报告存放目录'
-    });
-    return;
+      message: '请先设置报告存放目录',
+    })
+    return
   }
 
-  const result = await initGitHooks(config.value.reportPath);
+  const result = await initGitHooks(config.value.reportPath)
   await dialog.info({
     title: result.success ? '成功' : '失败',
-    message: result.message
-  });
+    message: result.message,
+  })
 }
 
 onMounted(() => {
-  loadConfig();
-});
+  loadConfig()
+})
 </script>
 
 <template>
@@ -97,7 +97,11 @@ onMounted(() => {
           </div>
 
           <div class="action-section">
-            <button class="btn-init" @click="handleInit" :disabled="isLoading() || !config.reportPath">
+            <button
+              class="btn-init"
+              @click="handleInit"
+              :disabled="isLoading() || !config.reportPath"
+            >
               {{ isLoading() ? '初始化中...' : '初始化 Git 钩子' }}
             </button>
           </div>
@@ -227,8 +231,13 @@ onMounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .status-text {

@@ -18,14 +18,16 @@ export function useReport() {
   const dailyArchive = ref<Record<string, string>>({})
 
   const gitLogsText = computed(() => {
-    return gitLogs.value.map(log => {
-      return `项目：${log.projectName}
+    return gitLogs.value
+      .map((log) => {
+        return `项目：${log.projectName}
 时间：${log.date}
 内容：${log.content}
 diff_start
 ${log.diff}
 diff_end`
-    }).join('\n------------------------\n')
+      })
+      .join('\n------------------------\n')
   })
 
   function formatDate(date: Date): string {
@@ -96,7 +98,7 @@ diff_end`
         generatedReport.value = ''
       }
       const report = await aiService.generateDailyReport(
-        gitLogsText.value, 
+        gitLogsText.value,
         userNotes.value,
         (chunk) => {
           if (onChunk) {
@@ -104,7 +106,7 @@ diff_end`
           } else {
             generatedReport.value += chunk
           }
-        }
+        },
       )
       if (!onChunk) {
         generatedReport.value = report
@@ -115,7 +117,11 @@ diff_end`
     }
   }
 
-  async function generateCycleReport(reportPath: string, type: 'week' | 'month', onChunk?: (chunk: string) => void) {
+  async function generateCycleReport(
+    reportPath: string,
+    type: 'week' | 'month',
+    onChunk?: (chunk: string) => void,
+  ) {
     const dates = getCycleDateRange(type, selectedDate.value)
     const summaries: ArchiveSummary[] = []
 
@@ -123,7 +129,7 @@ diff_end`
       if (dailyArchive.value[date]) {
         summaries.push({
           date,
-          content: dailyArchive.value[date]
+          content: dailyArchive.value[date],
         })
       }
     }
@@ -138,17 +144,13 @@ diff_end`
       if (onChunk) {
         generatedReport.value = ''
       }
-      const report = await aiService.generateCycleReport(
-        summaries, 
-        type,
-        (chunk) => {
-          if (onChunk) {
-            onChunk(chunk)
-          } else {
-            generatedReport.value += chunk
-          }
+      const report = await aiService.generateCycleReport(summaries, type, (chunk) => {
+        if (onChunk) {
+          onChunk(chunk)
+        } else {
+          generatedReport.value += chunk
         }
-      )
+      })
       if (!onChunk) {
         generatedReport.value = report
       }
@@ -220,6 +222,6 @@ diff_end`
     setReportType,
     setUserNotes,
     setGeneratedReport,
-    formatDate
+    formatDate,
   }
 }

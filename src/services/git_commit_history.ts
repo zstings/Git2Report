@@ -46,10 +46,8 @@ if [ -n "$PROJECT_PATH" ]; then
         echo "diff_end"
         echo "------------------------"
     } >> "$RECORD_FILE"
-fi`;
-export default git_commit_history;
-
-
+fi`
+export default git_commit_history
 
 /**
  * 压缩版，后期如果diff记录实在太离谱可以使用

@@ -10,7 +10,7 @@ async function applyTheme() {
   } else {
     document.documentElement.classList.remove('dark')
   }
-  
+
   const win = browserWindow.getCurrentWindow()
   if (win) {
     await win.setTheme(isDark.value ? 'dark' : 'light')
@@ -46,6 +46,6 @@ export function useDarkMode() {
   return {
     isDark,
     initTheme,
-    toggleDark
+    toggleDark,
   }
 }
