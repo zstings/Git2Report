@@ -301,7 +301,7 @@ watch(
             <button class="btn-icon" @click="changeDate(-1)" title="前一天">‹</button>
             <input type="date" class="date-input" v-model="report.selectedDate.value" />
             <button class="btn-icon" @click="changeDate(1)" title="后一天">›</button>
-            <button class="btn-fill" @click="showFillModal = true" title="补全提交记录">补全</button>
+            <button class="btn-fill" @click="showFillModal = true" title="手动补全提交记录">手动补全提交记录</button>
           </div>
         </div>
 
