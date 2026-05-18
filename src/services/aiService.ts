@@ -481,7 +481,11 @@ ${archiveSummaries.map(summary => `---\n日期：${summary.date}\n${summary.cont
           newContentLines.push(...entry.contentLines);
           newContentLines.push(entry.endMarker);
         }
-        const newContent = newContentLines.join('\n');
+        let newContent = newContentLines.join('\n');
+        // 确保文件末尾有换行符，这样新记录追加时格式正确
+        if (newContent.length > 0 && !newContent.endsWith('\n')) {
+          newContent += '\n';
+        }
         console.log(`[清理] 写入新内容，有效记录: ${validFullEntries.length} 条`);
         await fs.writeFile(logPath, newContent);
         console.log(`[清理] 清理完成，移除了 ${removedCount} 条无效记录`);
