@@ -2,14 +2,13 @@
 import { onMounted } from "vue";
 import { useProjects } from "../composables/useProjects";
 import { useConfig } from "../composables/useConfig";
-import { dialog, fs } from "vokex.app";
+import { dialog } from "vokex.app";
 
 const {
   loading,
   filteredProjects,
   searchQuery,
   loadProjects,
-  scanProjectsFromLogs,
   setSearchQuery,
 } = useProjects();
 const { config, loadConfig } = useConfig();
@@ -19,15 +18,6 @@ async function handleScanLogs() {
     await dialog.info({
       title: "提示",
       message: "请先在初始化页面设置报告存放目录",
-    });
-    return;
-  }
-
-  const exists = await fs.exists(config.value.reportPath);
-  if (!exists) {
-    await dialog.info({
-      title: "提示",
-      message: `报告目录不存在: ${config.value.reportPath}`,
     });
     return;
   }

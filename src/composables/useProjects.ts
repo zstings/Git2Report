@@ -36,20 +36,6 @@ export function useProjects() {
     }
   }
 
-  async function scanProjectsFromLogs(logDir: string) {
-    if (!logDir) return 0
-    
-    loading.value = true
-    try {
-      const scannedProjects = await gitService.scanProjectsFromLogs(logDir)
-      const oldCount = projects.value.length
-      projects.value = scannedProjects
-      return projects.value.length - oldCount
-    } finally {
-      loading.value = false
-    }
-  }
-
   function setSearchQuery(query: string) {
     searchQuery.value = query
   }
@@ -60,7 +46,6 @@ export function useProjects() {
     filteredProjects,
     searchQuery,
     loadProjects,
-    scanProjectsFromLogs,
     setSearchQuery
   }
 }
