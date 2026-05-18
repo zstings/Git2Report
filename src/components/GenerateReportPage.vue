@@ -43,10 +43,16 @@ async function handleLoadGitLogs() {
       report.generatedReport.value = report.loadArchivedReport(report.selectedDate.value);
     }
 
-    const removedCount = await report.cleanInvalidCommits(appConfig.value.reportPath, report.selectedDate.value);
-    if (removedCount > 0) {
-      console.log(`清理了 ${removedCount} 条无效记录，重新加载...`);
-      await report.loadGitLogs(appConfig.value.reportPath, report.selectedDate.value);
+    // 只在今天才清理无效提交记录
+    const today = report.formatDate(new Date());
+    if (report.selectedDate.value === today) {
+      const removedCount = await report.cleanInvalidCommits(appConfig.value.reportPath, report.selectedDate.value);
+      if (removedCount > 0) {
+        console.log(`清理了 ${removedCount} 条无效记录，重新加载...`);
+        await report.loadGitLogs(appConfig.value.reportPath, report.selectedDate.value);
+      }
+    } else {
+      console.log(`[跳过清理] 非今天日期: ${report.selectedDate.value}`);
     }
   } catch (error) {
     console.error('加载 Git 日志失败:', error);
