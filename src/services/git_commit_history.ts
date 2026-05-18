@@ -18,6 +18,12 @@ if [ -n "$PROJECT_PATH" ]; then
     SUBJECT=$(git log -1 --pretty=format:"%s")
     BODY=$(git log -1 --pretty=format:"%b")
 
+    # 核心修改：过滤掉包含 "Signed-off-by:" 的行，并去掉多余的空行
+    # 使用 echo -e 处理换行，grep -v 排除签名行
+    if [ -n "$BODY" ]; then
+      BODY=$(echo "$BODY" | grep -v "Signed-off-by:" | tr -d '\n\r' | xargs)
+    fi
+
     # 拼接内容字段：标题(描述)
     if [ -n "$BODY" ]; then
         CONTENT="\${SUBJECT}(\${BODY})"
@@ -46,19 +52,19 @@ if [ -n "$PROJECT_PATH" ]; then
         echo "diff_end"
         echo "------------------------"
     } >> "$RECORD_FILE"
-fi`
-export default git_commit_history
+fi`;
+export default git_commit_history;
 
 /**
  * 压缩版，后期如果diff记录实在太离谱可以使用
  * # 4a. 获取文件变更统计（AI 借此判断涉及的模块）
         STATS=$(git diff --name-status HEAD^ HEAD)
-        
+
         # 4b. 获取极致压缩的变更摘要
         # -U0: 不要任何上下文行
         # grep -v: 去掉 diff 协议头部冗余行
         # head -n 30: 强制封顶，防止单次意外的大量代码变动撑爆日志
         SUMMARY=$(git diff -U0 --no-color HEAD^ HEAD | grep -E "^@@|^[+-]" | grep -vE "^(\\+\\+\\+|---|@@.*@@$)" | head -n 30)
-        
+
         DIFF_INFO="【文件统计】\\n\$STATS\\n【改动片段摘要】\\n\$SUMMARY"
  */
