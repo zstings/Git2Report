@@ -1,4 +1,4 @@
-import type { AIConfig } from './services/aiService'
+import type { AIConfig } from './services/aiService';
 
 const todaySystemPrompt = (data: AIConfig) => {
   return `# Role
@@ -19,7 +19,7 @@ const todaySystemPrompt = (data: AIConfig) => {
     2. 具体的改动点 B
 - **[如果是多项目，以此类推]**
 
-${data.systemPreference ? `用户偏好：${data.systemPreference}` : ''}`
-}
+${data.systemPreference ? `用户偏好：${data.systemPreference}` : ''}`;
+};
 
-export { todaySystemPrompt }
+export { todaySystemPrompt };

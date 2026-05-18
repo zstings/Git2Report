@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
-import { useAI } from "../composables/useAI";
-import { useConfig } from "../composables/useConfig";
-import { useReport } from "../composables/useReport";
-import { useProjects } from "../composables/useProjects";
-import { clipboard, dialog } from "vokex.app";
+import { ref, onMounted, watch } from 'vue';
+import { useAI } from '../composables/useAI';
+import { useConfig } from '../composables/useConfig';
+import { useReport } from '../composables/useReport';
+import { useProjects } from '../composables/useProjects';
+import { clipboard, dialog } from 'vokex.app';
 
 const { config: aiConfig, loadConfig: loadAIConfig, saveConfig: saveAIConfig } = useAI();
 const { config: appConfig, loadConfig: loadAppConfig } = useConfig();
@@ -14,12 +14,12 @@ const report = useReport();
 const showAIConfig = ref(false);
 const isGenerating = ref(false);
 const isSaving = ref(false);
-const viewMode = ref<"preview" | "edit">("preview");
+const viewMode = ref<'preview' | 'edit'>('preview');
 
 function formatTime(dateStr: string): string {
   try {
     const date = new Date(dateStr);
-    return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   } catch {
     return dateStr;
   }
@@ -27,7 +27,7 @@ function formatTime(dateStr: string): string {
 
 function truncate(str: string, maxLength: number = 50): string {
   if (str.length <= maxLength) return str;
-  return str.substring(0, maxLength) + "...";
+  return str.substring(0, maxLength) + '...';
 }
 
 async function handleLoadGitLogs() {
@@ -43,7 +43,7 @@ async function handleLoadGitLogs() {
       report.generatedReport.value = report.loadArchivedReport(report.selectedDate.value);
     }
   } catch (error) {
-    console.error("加载 Git 日志失败:", error);
+    console.error('加载 Git 日志失败:', error);
   } finally {
     report.loading.value = false;
   }
@@ -52,29 +52,29 @@ async function handleLoadGitLogs() {
 async function handleGenerateReport() {
   if (!aiConfig.value.apiKey) {
     await dialog.info({
-      title: "提示",
-      message: "请先配置 AI 服务",
+      title: '提示',
+      message: '请先配置 AI 服务',
     });
     showAIConfig.value = true;
     return;
   }
 
   isGenerating.value = true;
-  report.generatedReport.value = "";
+  report.generatedReport.value = '';
   try {
-    if (report.selectedReportType.value === "daily") {
-      await report.generateDailyReport((chunk) => {
+    if (report.selectedReportType.value === 'daily') {
+      await report.generateDailyReport(chunk => {
         report.generatedReport.value += chunk;
       });
     } else {
-      const type = report.selectedReportType.value === "weekly" ? "week" : "month";
-      await report.generateCycleReport(appConfig.value.reportPath, type, (chunk) => {
+      const type = report.selectedReportType.value === 'weekly' ? 'week' : 'month';
+      await report.generateCycleReport(appConfig.value.reportPath, type, chunk => {
         report.generatedReport.value += chunk;
       });
     }
   } catch (error) {
     await dialog.error({
-      title: "生成失败",
+      title: '生成失败',
       message: String(error),
     });
   } finally {
@@ -86,24 +86,24 @@ async function handleCopyReport() {
   if (!report.generatedReport.value) return;
   await clipboard.writeText(report.generatedReport.value);
   await dialog.info({
-    title: "成功",
-    message: "报告已复制到剪贴板",
+    title: '成功',
+    message: '报告已复制到剪贴板',
   });
 }
 
 async function handleSaveReport() {
   if (!appConfig.value.reportPath) {
     await dialog.info({
-      title: "提示",
-      message: "请先在初始化页面设置报告存放目录",
+      title: '提示',
+      message: '请先在初始化页面设置报告存放目录',
     });
     return;
   }
 
-  if (report.selectedReportType.value !== "daily") {
+  if (report.selectedReportType.value !== 'daily') {
     await dialog.info({
-      title: "提示",
-      message: "仅日报可以存档",
+      title: '提示',
+      message: '仅日报可以存档',
     });
     return;
   }
@@ -112,12 +112,12 @@ async function handleSaveReport() {
   try {
     await report.saveDailyReport(appConfig.value.reportPath);
     await dialog.info({
-      title: "成功",
-      message: "报告已存档",
+      title: '成功',
+      message: '报告已存档',
     });
   } catch (error) {
     await dialog.error({
-      title: "保存失败",
+      title: '保存失败',
       message: String(error),
     });
   } finally {
@@ -129,8 +129,8 @@ async function handleSaveAIConfig() {
   await saveAIConfig();
   showAIConfig.value = false;
   await dialog.info({
-    title: "成功",
-    message: "配置已保存",
+    title: '成功',
+    message: '配置已保存',
   });
 }
 
@@ -141,28 +141,28 @@ function changeDate(days: number) {
 }
 
 function renderMarkdown(text: string | undefined): string {
-  if (!text || typeof text !== "string") return "";
+  if (!text || typeof text !== 'string') return '';
   try {
     let result = text
-      .replace(/^### (.*$)/gim, "<h3>$1</h3>")
-      .replace(/^## (.*$)/gim, "<h2>$1</h2>")
-      .replace(/^# (.*$)/gim, "<h1>$1</h1>")
-      .replace(/\*\*(.*)\*\*/gim, "<strong>$1</strong>")
-      .replace(/\*(.*)\*/gim, "<em>$1</em>")
-      .replace(/`(.*?)`/gim, "<code>$1</code>");
-    const lines = result.split("\n");
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+      .replace(/\*(.*)\*/gim, '<em>$1</em>')
+      .replace(/`(.*?)`/gim, '<code>$1</code>');
+    const lines = result.split('\n');
     let inList = false;
-    result = "";
+    result = '';
     for (const line of lines) {
-      if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
         if (!inList) {
-          result += "<ul>";
+          result += '<ul>';
           inList = true;
         }
         result += `<li>${line.trim().substring(2)}</li>`;
       } else {
         if (inList) {
-          result += "</ul>";
+          result += '</ul>';
           inList = false;
         }
         if (line.trim()) {
@@ -170,11 +170,11 @@ function renderMarkdown(text: string | undefined): string {
         }
       }
     }
-    if (inList) result += "</ul>";
+    if (inList) result += '</ul>';
     return result;
   } catch (error) {
-    console.error("渲染 Markdown 失败:", error);
-    return "";
+    console.error('渲染 Markdown 失败:', error);
+    return '';
   }
 }
 
@@ -187,7 +187,7 @@ onMounted(async () => {
 
   if (appConfig.value.reportPath) {
     await loadProjects(appConfig.value.reportPath);
-    const ignoredPaths = projects.value.filter((p) => p.isIgnored).map((p) => p.localPath);
+    const ignoredPaths = projects.value.filter(p => p.isIgnored).map(p => p.localPath);
     report.setIgnoredProjects(ignoredPaths);
     await report.loadDailyArchive(appConfig.value.reportPath);
     await handleLoadGitLogs();
@@ -197,7 +197,7 @@ onMounted(async () => {
 watch(
   () => projects.value,
   () => {
-    const ignoredPaths = projects.value.filter((p) => p.isIgnored).map((p) => p.localPath);
+    const ignoredPaths = projects.value.filter(p => p.isIgnored).map(p => p.localPath);
     report.setIgnoredProjects(ignoredPaths);
   },
   { deep: true },
@@ -243,20 +243,10 @@ watch(
 
         <div class="notes-section">
           <label class="notes-label">今日工作补充</label>
-          <textarea
-            v-model="report.userNotes.value"
-            class="notes-textarea"
-            placeholder="记录非代码工作，如：开会、写文档、线上排查等..."
-          />
+          <textarea v-model="report.userNotes.value" class="notes-textarea" placeholder="记录非代码工作，如：开会、写文档、线上排查等..." />
         </div>
 
-        <div
-          v-if="
-            report.selectedReportType.value === 'daily' &&
-            report.hasArchivedReport(report.selectedDate.value)
-          "
-          class="archive-badge"
-        >
+        <div v-if="report.selectedReportType.value === 'daily' && report.hasArchivedReport(report.selectedDate.value)" class="archive-badge">
           <span class="archive-icon">✓</span>
           <span class="archive-text">该日期已有存档报告</span>
         </div>
@@ -265,78 +255,35 @@ watch(
       <div class="report-panel">
         <div class="panel-header">
           <div class="report-type-tabs">
-            <button
-              class="tab-btn"
-              :class="{ active: report.selectedReportType.value === 'daily' }"
-              @click="report.setReportType('daily')"
-            >
-              日报
-            </button>
-            <button
-              class="tab-btn"
-              :class="{ active: report.selectedReportType.value === 'weekly' }"
-              @click="report.setReportType('weekly')"
-            >
-              周报
-            </button>
-            <button
-              class="tab-btn"
-              :class="{ active: report.selectedReportType.value === 'monthly' }"
-              @click="report.setReportType('monthly')"
-            >
-              月报
-            </button>
+            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'daily' }" @click="report.setReportType('daily')">日报</button>
+            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'weekly' }" @click="report.setReportType('weekly')">周报</button>
+            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'monthly' }" @click="report.setReportType('monthly')">月报</button>
           </div>
           <button class="btn-icon" @click="showAIConfig = true" title="AI 配置">⚙️</button>
         </div>
 
         <button class="generate-btn" @click="handleGenerateReport" :disabled="isGenerating">
           <span v-if="isGenerating" class="spinner small"></span>
-          {{ isGenerating ? "生成中..." : "智能 AI 一键生成" }}
+          {{ isGenerating ? '生成中...' : '智能 AI 一键生成' }}
         </button>
 
         <div class="view-tabs">
-          <button
-            class="view-tab"
-            :class="{ active: viewMode === 'preview' }"
-            @click="viewMode = 'preview'"
-          >
-            预览
-          </button>
-          <button
-            class="view-tab"
-            :class="{ active: viewMode === 'edit' }"
-            @click="viewMode = 'edit'"
-          >
-            编辑
-          </button>
+          <button class="view-tab" :class="{ active: viewMode === 'preview' }" @click="viewMode = 'preview'">预览</button>
+          <button class="view-tab" :class="{ active: viewMode === 'edit' }" @click="viewMode = 'edit'">编辑</button>
         </div>
 
         <div class="report-content">
-          <textarea
-            v-if="viewMode === 'edit'"
-            v-model="report.generatedReport.value"
-            class="report-editor"
-            placeholder="点击上方按钮生成报告..."
-          />
+          <textarea v-if="viewMode === 'edit'" v-model="report.generatedReport.value" class="report-editor" placeholder="点击上方按钮生成报告..." />
           <div v-else class="report-preview markdown-body">
-            <div
-              v-if="report.generatedReport.value"
-              v-html="renderMarkdown(report.generatedReport.value)"
-            ></div>
+            <div v-if="report.generatedReport.value" v-html="renderMarkdown(report.generatedReport.value)"></div>
             <div v-else class="placeholder-text">点击上方按钮生成报告...</div>
           </div>
         </div>
 
         <div v-if="report.generatedReport.value" class="actions-bar">
           <button class="btn-secondary" @click="handleCopyReport">一键复制</button>
-          <button
-            v-if="report.selectedReportType.value === 'daily'"
-            class="btn-primary"
-            @click="handleSaveReport"
-            :disabled="isSaving"
-          >
-            {{ isSaving ? "保存中..." : "确认存档" }}
+          <button v-if="report.selectedReportType.value === 'daily'" class="btn-primary" @click="handleSaveReport" :disabled="isSaving">
+            {{ isSaving ? '保存中...' : '确认存档' }}
           </button>
         </div>
       </div>
@@ -363,10 +310,7 @@ watch(
           </div>
           <div class="form-group">
             <label>个人偏好（选填）</label>
-            <textarea
-              v-model="aiConfig.systemPreference"
-              placeholder="例如：字数要求精炼，按格式：进展/问题/规划输出..."
-            />
+            <textarea v-model="aiConfig.systemPreference" placeholder="例如：字数要求精炼，按格式：进展/问题/规划输出..." />
           </div>
         </div>
         <div class="modal-footer">
@@ -534,7 +478,7 @@ watch(
 }
 
 .log-item:not(:last-child)::after {
-  content: "";
+  content: '';
   position: absolute;
   left: 21px;
   top: 28px;
@@ -727,7 +671,7 @@ watch(
 }
 
 .view-tab.active::after {
-  content: "";
+  content: '';
   position: absolute;
   bottom: -1px;
   left: 0;

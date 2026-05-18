@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
-import { useConfig } from "../composables/useConfig";
-import { useGit } from "../composables/useGit";
-import { dialog } from "vokex.app";
+import { onMounted } from 'vue';
+import { useConfig } from '../composables/useConfig';
+import { useGit } from '../composables/useGit';
+import { dialog } from 'vokex.app';
 
 const { config, loading: configLoading, loadConfig, saveConfig } = useConfig();
 const { loading: gitLoading, initGitHooks } = useGit();
@@ -12,10 +12,10 @@ const isLoading = () => configLoading.value || gitLoading.value;
 async function handleSelectPath() {
   const result = await dialog.showOpenDialog({
     directory: true,
-    title: "选择报告存放目录",
+    title: '选择报告存放目录',
   });
 
-  if (result && typeof result === "string" && result.length > 0) {
+  if (result && typeof result === 'string' && result.length > 0) {
     config.value.reportPath = result;
     await saveConfig();
   }
@@ -24,15 +24,15 @@ async function handleSelectPath() {
 async function handleInit() {
   if (!config.value.reportPath) {
     await dialog.info({
-      title: "提示",
-      message: "请先设置报告存放目录",
+      title: '提示',
+      message: '请先设置报告存放目录',
     });
     return;
   }
 
   const result = await initGitHooks(config.value.reportPath);
   await dialog.info({
-    title: result.success ? "成功" : "失败",
+    title: result.success ? '成功' : '失败',
     message: result.message,
   });
 }
@@ -75,34 +75,22 @@ onMounted(() => {
           <div class="panel-header">
             <div class="status-indicator">
               <span class="status-dot"></span>
-              <span class="status-text">{{ config.reportPath ? "已配置" : "待配置" }}</span>
+              <span class="status-text">{{ config.reportPath ? '已配置' : '待配置' }}</span>
             </div>
           </div>
 
           <div class="form-section">
             <h3>报告存放目录</h3>
             <div class="path-input-group">
-              <input
-                type="text"
-                :value="config.reportPath"
-                readonly
-                placeholder="请选择报告存放目录"
-                class="path-input"
-              />
-              <button class="btn-select" @click="handleSelectPath" :disabled="isLoading()">
-                选择目录
-              </button>
+              <input type="text" :value="config.reportPath" readonly placeholder="请选择报告存放目录" class="path-input" />
+              <button class="btn-select" @click="handleSelectPath" :disabled="isLoading()">选择目录</button>
             </div>
             <p class="hint">报告生成后将保存在此目录中</p>
           </div>
 
           <div class="action-section">
-            <button
-              class="btn-init"
-              @click="handleInit"
-              :disabled="isLoading() || !config.reportPath"
-            >
-              {{ isLoading() ? "初始化中..." : "初始化 Git 钩子" }}
+            <button class="btn-init" @click="handleInit" :disabled="isLoading() || !config.reportPath">
+              {{ isLoading() ? '初始化中...' : '初始化 Git 钩子' }}
             </button>
           </div>
         </div>
@@ -359,7 +347,7 @@ onMounted(() => {
 }
 
 .info-list li::before {
-  content: "✓";
+  content: '✓';
   position: absolute;
   left: 0;
   color: var(--color-primary);

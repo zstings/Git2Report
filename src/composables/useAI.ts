@@ -1,15 +1,15 @@
-import { ref } from "vue";
-import { AIService } from "../services/aiService";
-import type { AIConfig } from "../services/aiService";
+import { ref } from 'vue';
+import { AIService } from '../services/aiService';
+import type { AIConfig } from '../services/aiService';
 
 export function useAI() {
   const aiService = AIService.getInstance();
   const loading = ref(false);
   const config = ref<AIConfig>({
-    apiKey: "",
-    baseUrl: "https://api.openai.com/v1",
-    model: "gpt-3.5-turbo",
-    systemPreference: "",
+    apiKey: '',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-3.5-turbo',
+    systemPreference: '',
   });
 
   async function loadConfig() {

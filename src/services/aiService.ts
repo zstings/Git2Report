@@ -1,5 +1,5 @@
-import { http, safeStorage, fs, path } from "vokex.app";
-import { todaySystemPrompt } from "../utils";
+import { http, safeStorage, fs, path } from 'vokex.app';
+import { todaySystemPrompt } from '../utils';
 
 export interface AIConfig {
   apiKey: string;
@@ -39,9 +39,9 @@ export class AIService {
 
   async loadConfig(): Promise<AIConfig | null> {
     try {
-      const hasConfig = await safeStorage.has("aiConfig");
+      const hasConfig = await safeStorage.has('aiConfig');
       if (hasConfig) {
-        const savedConfig = await safeStorage.getItem("aiConfig");
+        const savedConfig = await safeStorage.getItem('aiConfig');
         if (savedConfig) {
           this.config = savedConfig as AIConfig;
           return this.config;
@@ -49,41 +49,37 @@ export class AIService {
       }
       return null;
     } catch (error) {
-      console.error("加载 AI 配置失败:", error);
+      console.error('加载 AI 配置失败:', error);
       return null;
     }
   }
 
   async saveConfig(config: AIConfig): Promise<void> {
     this.config = config;
-    await safeStorage.setItem("aiConfig", config);
+    await safeStorage.setItem('aiConfig', config);
   }
 
-  async generateDailyReport(
-    gitLogs: string,
-    userNotes: string,
-    onChunk?: (chunk: string) => void,
-  ): Promise<string> {
+  async generateDailyReport(gitLogs: string, userNotes: string, onChunk?: (chunk: string) => void): Promise<string> {
     if (!this.config) {
-      throw new Error("请先配置 AI 服务");
+      throw new Error('请先配置 AI 服务');
     }
 
     const systemPrompt = todaySystemPrompt(this.config);
 
-    const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || "无"}`;
+    const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || '无'}`;
 
     try {
       const response = await http.fetch(`${this.config.baseUrl}/chat/completions`, {
-        method: "POST",
+        method: 'POST',
         body: {
           model: this.config.model,
           messages: [
             {
-              role: "system",
+              role: 'system',
               content: systemPrompt,
             },
             {
-              role: "user",
+              role: 'user',
               content: userPrompt,
             },
           ],
@@ -109,21 +105,18 @@ export class AIService {
         return data.choices[0].message.content;
       }
     } catch (error) {
-      console.error("生成日报失败:", error);
+      console.error('生成日报失败:', error);
       throw error;
     }
   }
 
-  private async parseSSEStream(
-    response: Response,
-    onChunk: (chunk: string) => void,
-  ): Promise<string> {
+  private async parseSSEStream(response: Response, onChunk: (chunk: string) => void): Promise<string> {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
-    let fullText = "";
+    let fullText = '';
 
     if (!reader) {
-      throw new Error("无法获取响应流");
+      throw new Error('无法获取响应流');
     }
 
     try {
@@ -132,23 +125,23 @@ export class AIService {
         if (done) break;
 
         const rawChunk = decoder.decode(value, { stream: true });
-        const lines = rawChunk.split("\n");
+        const lines = rawChunk.split('\n');
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (!trimmed || trimmed === "data: [DONE]") continue;
+          if (!trimmed || trimmed === 'data: [DONE]') continue;
 
-          if (trimmed.startsWith("data: ")) {
+          if (trimmed.startsWith('data: ')) {
             try {
               const jsonStr = trimmed.slice(6);
               const data = JSON.parse(jsonStr);
-              const content = data.choices?.[0]?.delta?.content || "";
+              const content = data.choices?.[0]?.delta?.content || '';
               if (content) {
                 fullText += content;
                 onChunk(content);
               }
             } catch (e) {
-              console.warn("解析 SSE 数据失败:", e);
+              console.warn('解析 SSE 数据失败:', e);
             }
           }
         }
@@ -160,41 +153,37 @@ export class AIService {
     return fullText;
   }
 
-  async generateCycleReport(
-    archiveSummaries: ArchiveSummary[],
-    type: "week" | "month",
-    onChunk?: (chunk: string) => void,
-  ): Promise<string> {
+  async generateCycleReport(archiveSummaries: ArchiveSummary[], type: 'week' | 'month', onChunk?: (chunk: string) => void): Promise<string> {
     if (!this.config) {
-      throw new Error("请先配置 AI 服务");
+      throw new Error('请先配置 AI 服务');
     }
 
     if (archiveSummaries.length === 0) {
-      return "该时间段暂无存档日报";
+      return '该时间段暂无存档日报';
     }
 
-    const typeLabel = type === "week" ? "周报" : "月报";
+    const typeLabel = type === 'week' ? '周报' : '月报';
 
     const systemPrompt = `你是一位技术总监。输入的是已过滤代码细节的精简日报，无需再分析 diff。严禁把多天日报机械拼接做流水账。必须站在功能迭代和架构演进高度纵向合并，按【核心业务研发】、【系统架构重构】等大类成果导向输出，面向高层汇报。
 
-${this.config.systemPreference ? `用户偏好：${this.config.systemPreference}` : ""}`;
+${this.config.systemPreference ? `用户偏好：${this.config.systemPreference}` : ''}`;
 
     const userPrompt = `请根据以下存档的日报内容，生成一份${typeLabel}：
 
-${archiveSummaries.map((summary) => `---\n日期：${summary.date}\n${summary.content}`).join("\n")}`;
+${archiveSummaries.map(summary => `---\n日期：${summary.date}\n${summary.content}`).join('\n')}`;
 
     try {
       const response = await http.fetch(`${this.config.baseUrl}/chat/completions`, {
-        method: "POST",
+        method: 'POST',
         body: {
           model: this.config.model,
           messages: [
             {
-              role: "system",
+              role: 'system',
               content: systemPrompt,
             },
             {
-              role: "user",
+              role: 'user',
               content: userPrompt,
             },
           ],
@@ -220,29 +209,29 @@ ${archiveSummaries.map((summary) => `---\n日期：${summary.date}\n${summary.co
         return data.choices[0].message.content;
       }
     } catch (error) {
-      console.error("生成周期报告失败:", error);
+      console.error('生成周期报告失败:', error);
       throw error;
     }
   }
 
   async saveSummaryToLocal(reportPath: string, date: string, content: string): Promise<void> {
     try {
-      const summaryDir = await path.join(reportPath, "summary");
+      const summaryDir = await path.join(reportPath, 'summary');
       await fs.mkdir(summaryDir, { recursive: true });
 
-      const archivePath = await path.join(summaryDir, "daily_archive.json");
+      const archivePath = await path.join(summaryDir, 'daily_archive.json');
       let archive: DailyArchive = {};
 
       const exists = await fs.exists(archivePath);
       if (exists) {
-        const rawContent = await fs.readFile(archivePath, { encoding: "utf8" });
+        const rawContent = await fs.readFile(archivePath, { encoding: 'utf8' });
 
         let fileContent: string;
 
-        if (typeof rawContent === "string") {
+        if (typeof rawContent === 'string') {
           fileContent = rawContent;
         } else {
-          console.warn("读取存档文件返回了不支持的类型");
+          console.warn('读取存档文件返回了不支持的类型');
           archive = {};
         }
 
@@ -254,44 +243,44 @@ ${archiveSummaries.map((summary) => `---\n日期：${summary.date}\n${summary.co
       archive[date] = content;
       await fs.writeFile(archivePath, JSON.stringify(archive, null, 2));
     } catch (error) {
-      console.error("保存日报存档失败:", error);
+      console.error('保存日报存档失败:', error);
       throw new Error(`保存日报存档失败: ${error}`);
     }
   }
 
   async loadDailyArchive(reportPath: string): Promise<DailyArchive> {
     try {
-      const archivePath = await path.join(reportPath, "summary", "daily_archive.json");
+      const archivePath = await path.join(reportPath, 'summary', 'daily_archive.json');
       const exists = await fs.exists(archivePath);
       if (!exists) {
         return {};
       }
 
-      const rawContent = await fs.readFile(archivePath, { encoding: "utf8" });
+      const rawContent = await fs.readFile(archivePath, { encoding: 'utf8' });
       let content: string;
 
-      if (typeof rawContent === "string") {
+      if (typeof rawContent === 'string') {
         content = rawContent;
       } else {
-        console.warn("读取存档文件返回了不支持的类型");
+        console.warn('读取存档文件返回了不支持的类型');
         return {};
       }
 
-      if (!content || typeof content !== "string") {
-        console.warn("读取存档文件内容为空或无效");
+      if (!content || typeof content !== 'string') {
+        console.warn('读取存档文件内容为空或无效');
         return {};
       }
 
       return JSON.parse(content);
     } catch (error) {
-      console.error("加载日报存档失败:", error);
+      console.error('加载日报存档失败:', error);
       return {};
     }
   }
 
   async readGitCommitLogs(reportPath: string, date: string): Promise<GitCommitLog[]> {
     try {
-      const originalDir = await path.join(reportPath, "original");
+      const originalDir = await path.join(reportPath, 'original');
       const logPath = await path.join(originalDir, `${date}-git_commit_history.txt`);
 
       const exists = await fs.exists(logPath);
@@ -300,54 +289,54 @@ ${archiveSummaries.map((summary) => `---\n日期：${summary.date}\n${summary.co
         return [];
       }
 
-      const rawContent = await fs.readFile(logPath, { encoding: "utf8" });
+      const rawContent = await fs.readFile(logPath, { encoding: 'utf8' });
       let content: string;
 
-      if (typeof rawContent === "string") {
+      if (typeof rawContent === 'string') {
         content = rawContent;
       } else {
-        console.warn("读取日志文件返回了不支持的类型");
+        console.warn('读取日志文件返回了不支持的类型');
         return [];
       }
 
-      if (!content || typeof content !== "string") {
-        console.warn("读取日志文件内容为空或无效");
+      if (!content || typeof content !== 'string') {
+        console.warn('读取日志文件内容为空或无效');
         return [];
       }
 
       const logs: GitCommitLog[] = [];
 
-      const entries = content.split("------------------------").filter((e) => e.trim());
+      const entries = content.split('------------------------').filter(e => e.trim());
 
       for (const entry of entries) {
         const lines = entry
           .trim()
-          .split("\n")
-          .filter((l) => l.trim());
+          .split('\n')
+          .filter(l => l.trim());
         if (lines.length === 0) continue;
 
-        let projectPath = "";
-        let hash = "";
-        let dateStr = "";
-        let contentStr = "";
-        let diff = "";
+        let projectPath = '';
+        let hash = '';
+        let dateStr = '';
+        let contentStr = '';
+        let diff = '';
         let inDiff = false;
 
         for (const line of lines) {
-          if (line.startsWith("项目：")) {
-            projectPath = line.substring("项目：".length).trim();
-          } else if (line.startsWith("hash：")) {
-            hash = line.substring("hash：".length).trim();
-          } else if (line.startsWith("时间：")) {
-            dateStr = line.substring("时间：".length).trim();
-          } else if (line.startsWith("内容：")) {
-            contentStr = line.substring("内容：".length).trim();
-          } else if (line === "diff_start") {
+          if (line.startsWith('项目：')) {
+            projectPath = line.substring('项目：'.length).trim();
+          } else if (line.startsWith('hash：')) {
+            hash = line.substring('hash：'.length).trim();
+          } else if (line.startsWith('时间：')) {
+            dateStr = line.substring('时间：'.length).trim();
+          } else if (line.startsWith('内容：')) {
+            contentStr = line.substring('内容：'.length).trim();
+          } else if (line === 'diff_start') {
             inDiff = true;
-          } else if (line === "diff_end") {
+          } else if (line === 'diff_end') {
             inDiff = false;
           } else if (inDiff) {
-            diff += line + "\n";
+            diff += line + '\n';
           }
         }
 
@@ -366,7 +355,7 @@ ${archiveSummaries.map((summary) => `---\n日期：${summary.date}\n${summary.co
 
       return logs;
     } catch (error) {
-      console.error("读取 Git 提交日志失败:", error);
+      console.error('读取 Git 提交日志失败:', error);
       return [];
     }
   }

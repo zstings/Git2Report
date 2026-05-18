@@ -1,5 +1,5 @@
-import { ref } from "vue";
-import { GitService } from "../services/gitService";
+import { ref } from 'vue';
+import { GitService } from '../services/gitService';
 
 export function useGit() {
   const gitService = GitService.getInstance();

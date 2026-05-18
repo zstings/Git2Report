@@ -1,15 +1,15 @@
-import { ref } from "vue";
-import { storage } from "vokex.app";
+import { ref } from 'vue';
+import { storage } from 'vokex.app';
 
 export interface AppConfig {
   reportPath: string;
 }
 
 const defaultConfig: AppConfig = {
-  reportPath: "",
+  reportPath: '',
 };
 
-const STORAGE_KEY = "git2report_config";
+const STORAGE_KEY = 'git2report_config';
 
 export function useConfig() {
   const config = ref<AppConfig>({ ...defaultConfig });
@@ -23,7 +23,7 @@ export function useConfig() {
         config.value = { ...defaultConfig, ...savedData };
       }
     } catch (error) {
-      console.error("加载配置失败:", error);
+      console.error('加载配置失败:', error);
       config.value = { ...defaultConfig };
     } finally {
       loading.value = false;
@@ -35,7 +35,7 @@ export function useConfig() {
     try {
       await storage.setData(STORAGE_KEY, config.value);
     } catch (error) {
-      console.error("保存配置失败:", error);
+      console.error('保存配置失败:', error);
       throw error;
     } finally {
       loading.value = false;

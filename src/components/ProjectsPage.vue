@@ -1,33 +1,25 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
-import { useProjects } from "../composables/useProjects";
-import { useConfig } from "../composables/useConfig";
-import { dialog } from "vokex.app";
+import { onMounted } from 'vue';
+import { useProjects } from '../composables/useProjects';
+import { useConfig } from '../composables/useConfig';
+import { dialog } from 'vokex.app';
 
-const {
-  loading,
-  filteredProjects,
-  searchQuery,
-  loadProjects,
-  scanAllProjects,
-  toggleProjectIgnore,
-  setSearchQuery,
-} = useProjects();
+const { loading, filteredProjects, searchQuery, loadProjects, scanAllProjects, toggleProjectIgnore, setSearchQuery } = useProjects();
 const { config, loadConfig } = useConfig();
 
 async function handleScanAllLogs() {
   if (!config.value.reportPath) {
     await dialog.info({
-      title: "提示",
-      message: "请先在初始化页面设置报告存放目录",
+      title: '提示',
+      message: '请先在初始化页面设置报告存放目录',
     });
     return;
   }
 
   const count = await scanAllProjects(config.value.reportPath);
   await dialog.info({
-    title: "完成",
-    message: count > 0 ? `扫描完成，共发现 ${count} 个项目` : "扫描完成，未发现项目",
+    title: '完成',
+    message: count > 0 ? `扫描完成，共发现 ${count} 个项目` : '扫描完成，未发现项目',
   });
 }
 
@@ -52,18 +44,10 @@ onMounted(async () => {
     <div class="search-section">
       <div class="search-input-group">
         <span class="search-icon">🔍</span>
-        <input
-          type="text"
-          v-model="searchQuery"
-          @input="setSearchQuery(searchQuery)"
-          placeholder="搜索项目名称或路径..."
-          class="search-input"
-        />
+        <input type="text" v-model="searchQuery" @input="setSearchQuery(searchQuery)" placeholder="搜索项目名称或路径..." class="search-input" />
         <button v-if="searchQuery" class="btn-clear" @click="setSearchQuery('')">×</button>
       </div>
-      <div v-if="searchQuery" class="search-hint">
-        找到 {{ filteredProjects.length }} 个匹配项目
-      </div>
+      <div v-if="searchQuery" class="search-hint">找到 {{ filteredProjects.length }} 个匹配项目</div>
     </div>
 
     <div v-if="loading && filteredProjects.length === 0" class="loading-state">
@@ -72,14 +56,9 @@ onMounted(async () => {
     </div>
 
     <div v-else-if="filteredProjects.length > 0" class="projects-grid">
-      <div
-        v-for="(project, index) in filteredProjects"
-        :key="index"
-        class="project-card"
-        :class="{ 'project-ignored': project.isIgnored }"
-      >
+      <div v-for="(project, index) in filteredProjects" :key="index" class="project-card" :class="{ 'project-ignored': project.isIgnored }">
         <div class="project-initials">
-          {{ project.localPath.split(/[\\/]/).pop()?.charAt(0).toUpperCase() || "?" }}
+          {{ project.localPath.split(/[\\/]/).pop()?.charAt(0).toUpperCase() || '?' }}
         </div>
         <div class="project-details">
           <div class="project-name">
@@ -92,7 +71,7 @@ onMounted(async () => {
           </div>
         </div>
         <button class="btn-ignore" @click="toggleProjectIgnore(project.localPath)">
-          {{ project.isIgnored ? "取消忽略" : "忽略" }}
+          {{ project.isIgnored ? '取消忽略' : '忽略' }}
         </button>
       </div>
     </div>
