@@ -337,7 +337,7 @@ watch(
 }
 
 .git-panel {
-  width: 40%;
+  width: 50%;
   min-width: 320px;
   background: var(--bg-panel);
   border-right: 1px solid var(--color-border);
