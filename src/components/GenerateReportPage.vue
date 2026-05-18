@@ -75,7 +75,7 @@ async function handleGenerateReport() {
   } catch (error) {
     await dialog.error({
       title: '生成失败',
-      message: String(error),
+      message: `请求失败：${error instanceof Error ? error.message : String(error)}\n\n请检查：\n1. 网络连接是否正常\n2. API Key 是否有效\n3. API 服务是否可用`,
     });
   } finally {
     isGenerating.value = false;
