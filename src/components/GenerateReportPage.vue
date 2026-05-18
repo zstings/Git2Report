@@ -167,6 +167,13 @@ async function handleGenerateReport() {
     });
   } finally {
     isGenerating.value = false;
+    if (report.generatedReport.value.trim() && report.selectedReportType.value === 'daily' && appConfig.value.reportPath) {
+      try {
+        await report.saveDailyReport(appConfig.value.reportPath);
+      } catch {
+        // 自动存档失败时不阻塞，用户仍可手动存档
+      }
+    }
   }
 }
 
