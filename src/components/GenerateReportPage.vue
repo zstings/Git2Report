@@ -289,7 +289,7 @@ watch(
       </div>
     </div>
 
-    <div v-if="showAIConfig" class="modal-overlay" @click.self="showAIConfig = false">
+    <div v-if="showAIConfig" class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
           <h3>AI 配置</h3>
