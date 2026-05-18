@@ -65,6 +65,15 @@ async function handleGenerateReport() {
     return;
   }
 
+  // 检查是否有 Git 记录
+  if (report.selectedReportType.value === 'daily' && report.filteredGitLogs.value.length === 0 && !report.userNotes.value.trim()) {
+    await dialog.info({
+      title: '提示',
+      message: '当日没有 Git 提交记录',
+    });
+    return;
+  }
+
   isGenerating.value = true;
   report.generatedReport.value = '';
   try {
