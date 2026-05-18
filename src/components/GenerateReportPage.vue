@@ -42,6 +42,12 @@ async function handleLoadGitLogs() {
     if (report.hasArchivedReport(report.selectedDate.value)) {
       report.generatedReport.value = report.loadArchivedReport(report.selectedDate.value);
     }
+
+    const removedCount = await report.cleanInvalidCommits(appConfig.value.reportPath, report.selectedDate.value);
+    if (removedCount > 0) {
+      console.log(`清理了 ${removedCount} 条无效记录，重新加载...`);
+      await report.loadGitLogs(appConfig.value.reportPath, report.selectedDate.value);
+    }
   } catch (error) {
     console.error('加载 Git 日志失败:', error);
   } finally {

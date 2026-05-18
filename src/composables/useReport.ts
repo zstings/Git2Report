@@ -16,6 +16,7 @@ export function useReport() {
   const ignoredProjectPaths = ref<Set<string>>(new Set());
   const userNotes = ref('');
   const generatedReport = ref('');
+  const thinkingContent = ref('');
   const dailyArchive = ref<Record<string, string>>({});
 
   const filteredGitLogs = computed(() => {
@@ -84,6 +85,15 @@ diff_end`;
       gitLogs.value = [];
     } finally {
       loading.value = false;
+    }
+  }
+
+  async function cleanInvalidCommits(reportPath: string, date: string): Promise<number> {
+    try {
+      return await aiService.verifyAndCleanCommitLogs(reportPath, date);
+    } catch (error) {
+      console.error('清理无效提交失败:', error);
+      return 0;
     }
   }
 
@@ -211,10 +221,12 @@ diff_end`;
     filteredGitLogs,
     userNotes,
     generatedReport,
+    thinkingContent,
     dailyArchive,
     gitLogsText,
     loadGitLogs,
     loadDailyArchive,
+    cleanInvalidCommits,
     generateDailyReport,
     generateCycleReport,
     saveDailyReport,
