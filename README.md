@@ -91,11 +91,7 @@ git2report/
 
 ## 项目记录存储
 
-所有记录的 Git 项目保存在 `~/.git_projects_list.txt` 文件中，格式为：
-
-```
-项目路径 | 远程仓库地址
-```
+所有 Git 提交记录保存在配置的报告目录下的 `original/` 子目录中，文件按日期命名（格式：`YYYY-MM-DD-git_commit_history.txt`）。应用会从这些日志文件中自动扫描和识别项目。
 
 ## 注意事项
 

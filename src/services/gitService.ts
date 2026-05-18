@@ -20,11 +20,6 @@ export class GitService {
     return await app.getPath("home");
   }
 
-  private async getProjectsListPath(): Promise<string> {
-    const homeDir = await this.getHomeDir();
-    return await path.join(homeDir, ".git_projects_list.txt");
-  }
-
   private readonly HOOK_START_MARKER = "# === GIT2REPORT HOOK START ===";
   private readonly HOOK_END_MARKER = "# === GIT2REPORT HOOK END ===";
 
@@ -94,36 +89,6 @@ export class GitService {
         success: false,
         message: `初始化失败: ${error}`,
       };
-    }
-  }
-
-  async getProjects(): Promise<GitProject[]> {
-    try {
-      const projectsListPath = await this.getProjectsListPath();
-      const exists = await fs.exists(projectsListPath);
-
-      if (!exists) {
-        return [];
-      }
-
-      const content = await fs.readFile(projectsListPath, { encoding: "utf8" });
-      const lines = content.split("\n").filter((line) => line.trim());
-
-      const projects: GitProject[] = [];
-      for (const line of lines) {
-        const parts: any = line.split(" | ");
-        if (parts.length >= 2) {
-          projects.push({
-            localPath: parts[0].trim(),
-            remoteUrl: parts[1].trim(),
-          });
-        }
-      }
-
-      return projects;
-    } catch (error) {
-      console.error("读取项目列表失败:", error);
-      return [];
     }
   }
 
