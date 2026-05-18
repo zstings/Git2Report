@@ -1,34 +1,42 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useProjects } from '../composables/useProjects'
-import { useConfig } from '../composables/useConfig'
-import { dialog } from 'vokex.app'
+import { onMounted } from "vue";
+import { useProjects } from "../composables/useProjects";
+import { useConfig } from "../composables/useConfig";
+import { dialog } from "vokex.app";
 
-const { loading, filteredProjects, searchQuery, loadProjects, scanAllProjects, setSearchQuery } = useProjects()
-const { config, loadConfig } = useConfig()
+const {
+  loading,
+  filteredProjects,
+  searchQuery,
+  loadProjects,
+  scanAllProjects,
+  toggleProjectIgnore,
+  setSearchQuery,
+} = useProjects();
+const { config, loadConfig } = useConfig();
 
 async function handleScanAllLogs() {
   if (!config.value.reportPath) {
     await dialog.info({
-      title: '提示',
-      message: '请先在初始化页面设置报告存放目录',
-    })
-    return
+      title: "提示",
+      message: "请先在初始化页面设置报告存放目录",
+    });
+    return;
   }
 
-  const count = await scanAllProjects(config.value.reportPath)
+  const count = await scanAllProjects(config.value.reportPath);
   await dialog.info({
-    title: '完成',
-    message: count > 0 ? `扫描完成，共发现 ${count} 个项目` : '扫描完成，未发现项目',
-  })
+    title: "完成",
+    message: count > 0 ? `扫描完成，共发现 ${count} 个项目` : "扫描完成，未发现项目",
+  });
 }
 
 onMounted(async () => {
-  await loadConfig()
+  await loadConfig();
   if (config.value.reportPath) {
-    await loadProjects(config.value.reportPath)
+    await loadProjects(config.value.reportPath);
   }
-})
+});
 </script>
 
 <template>
@@ -64,19 +72,28 @@ onMounted(async () => {
     </div>
 
     <div v-else-if="filteredProjects.length > 0" class="projects-grid">
-      <div v-for="(project, index) in filteredProjects" :key="index" class="project-card">
+      <div
+        v-for="(project, index) in filteredProjects"
+        :key="index"
+        class="project-card"
+        :class="{ 'project-ignored': project.isIgnored }"
+      >
         <div class="project-initials">
-          {{ project.localPath.split(/[\\/]/).pop()?.charAt(0).toUpperCase() || '?' }}
+          {{ project.localPath.split(/[\\/]/).pop()?.charAt(0).toUpperCase() || "?" }}
         </div>
         <div class="project-details">
           <div class="project-name">
             {{ project.localPath.split(/[\\/]/).pop() }}
+            <span v-if="project.isIgnored" class="ignore-tag">已忽略</span>
           </div>
           <div class="project-path">{{ project.localPath }}</div>
           <div v-if="project.remoteUrl !== 'none'" class="project-remote">
             {{ project.remoteUrl }}
           </div>
         </div>
+        <button class="btn-ignore" @click="toggleProjectIgnore(project.localPath)">
+          {{ project.isIgnored ? "取消忽略" : "忽略" }}
+        </button>
       </div>
     </div>
 
@@ -253,6 +270,10 @@ onMounted(async () => {
   background: var(--bg-main);
 }
 
+.project-card.project-ignored {
+  opacity: 0.5;
+}
+
 .project-initials {
   width: 40px;
   height: 40px;
@@ -277,6 +298,17 @@ onMounted(async () => {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ignore-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--text-muted);
+  color: var(--bg-panel);
+  border-radius: 4px;
 }
 
 .project-path {
@@ -294,6 +326,26 @@ onMounted(async () => {
   font-family: monospace;
   word-break: break-all;
   line-height: 1.4;
+}
+
+.btn-ignore {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-main);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.btn-ignore:hover {
+  background: var(--bg-sidebar);
+  border-color: var(--text-muted);
+  color: var(--text-regular);
 }
 
 .empty-state {
