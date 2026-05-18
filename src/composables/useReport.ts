@@ -211,6 +211,112 @@ diff_end`;
     generatedReport.value = report;
   }
 
+  async function fillCommitsFromProjects(reportPath: string, projectPaths: string[], targetDate: string): Promise<number> {
+    const { fs, shell, path } = await import('vokex.app');
+    
+    const originalDir = await path.join(reportPath, 'original');
+    await fs.mkdir(originalDir, { recursive: true });
+    
+    const logFilePath = await path.join(originalDir, `${targetDate}-git_commit_history.txt`);
+    
+    let existingContent = '';
+    if (await fs.exists(logFilePath)) {
+      existingContent = await fs.readFile(logFilePath, { encoding: 'utf8' });
+    }
+
+    const existingHashes = new Set<string>();
+    const hashRegex = /----------([a-f0-9]{40})-o----------/g;
+    let match;
+    while ((match = hashRegex.exec(existingContent)) !== null) {
+      existingHashes.add(match[1]);
+    }
+
+    let addedCount = 0;
+    const newEntries: string[] = [];
+
+    for (const projectPath of projectPaths) {
+      const normalizedPath = projectPath.replace(/\\/g, '/');
+      
+      const result = await shell.exec('git', [
+        '-C', normalizedPath,
+        'log',
+        '--all',
+        '--no-merges',
+        `--since="${targetDate} 00:00"`,
+        `--until="${targetDate} 23:59"`,
+        '--pretty=format:%H|||%ai|||%s|||%b[COMMIT_SEP]',
+      ]);
+
+      if (!result.success || !result.stdout) {
+        continue;
+      }
+
+      const commits = result.stdout.split('[COMMIT_SEP]').filter(c => c.trim());
+      
+      for (const commit of commits) {
+        const parts = commit.split('|||');
+        if (parts.length < 3) continue;
+        
+        const hash = parts[0].trim();
+        if (existingHashes.has(hash)) {
+          continue;
+        }
+        
+        const date = parts[1].trim();
+        const subject = parts[2].trim();
+        const body = parts.length > 3 ? parts[3].trim() : '';
+
+        let bodyClean = body.replace(/Signed-off-by:.*/g, '').trim();
+        bodyClean = bodyClean.replace(/[\n\r]+/g, ' ').trim();
+
+        let content = subject;
+        if (bodyClean) {
+          content = `${subject}(${bodyClean})`;
+        }
+
+        let diffInfo = '[已忽略]';
+        if (content.length < 15) {
+          const diffResult = await shell.exec('git', [
+            '-C', normalizedPath,
+            'show',
+            '--no-color',
+            '--pretty=',
+            '--patch-with-stat',
+            hash,
+          ]);
+          if (diffResult.success) {
+            diffInfo = diffResult.stdout;
+          }
+        }
+
+        existingHashes.add(hash);
+        addedCount++;
+
+        let entry = `----------${hash}-o----------\n`;
+        entry += `项目：${normalizedPath}\n`;
+        entry += `hash：${hash}\n`;
+        entry += `时间：${date}\n`;
+        entry += `内容：${content}\n`;
+        entry += `diff_start\n`;
+        entry += `${diffInfo}\n`;
+        entry += `diff_end\n`;
+        entry += `----------${hash}-e----------\n`;
+        
+        newEntries.push(entry);
+      }
+    }
+
+    if (addedCount > 0) {
+      if (existingContent && !existingContent.endsWith('\n')) {
+        existingContent += '\n';
+      }
+      existingContent += newEntries.join('\n');
+      await fs.writeFile(logFilePath, existingContent);
+    }
+
+    return addedCount;
+  }
+
   return {
     loading,
     aiLoading,
@@ -238,5 +344,6 @@ diff_end`;
     setGeneratedReport,
     setIgnoredProjects,
     formatDate,
+    fillCommitsFromProjects,
   };
 }

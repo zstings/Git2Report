@@ -12,9 +12,11 @@ const { projects, loadProjects } = useProjects();
 const report = useReport();
 
 const showAIConfig = ref(false);
+const showFillModal = ref(false);
 const isGenerating = ref(false);
 const isSaving = ref(false);
 const viewMode = ref<'preview' | 'edit'>('preview');
+const projectPathsInput = ref('');
 
 function formatTime(dateStr: string): string {
   try {
@@ -56,6 +58,71 @@ async function handleLoadGitLogs() {
     }
   } catch (error) {
     console.error('加载 Git 日志失败:', error);
+  } finally {
+    report.loading.value = false;
+  }
+}
+
+async function handleSelectDirectories() {
+  const result = await dialog.showOpenDialog({
+    title: '选择 Git 项目目录',
+    multiple: true,
+    directory: true,
+    defaultPath: '',
+  });
+
+  console.log('[选择目录] 返回结果:', result, '类型:', Array.isArray(result));
+  
+  if (result && result.length > 0) {
+    const existingPaths = projectPathsInput.value.trim().split('\n').filter(p => p.trim());
+    const newPaths = [...new Set([...existingPaths, ...result])];
+    projectPathsInput.value = newPaths.join('\n');
+    console.log('[选择目录] 已选择:', newPaths);
+  }
+}
+
+async function handleFillCommits() {
+  if (!appConfig.value.reportPath) {
+    await dialog.info({
+      title: '提示',
+      message: '请先在初始化页面设置报告存放目录',
+    });
+    return;
+  }
+
+  const paths = projectPathsInput.value.trim().split('\n').filter(p => p.trim());
+  if (paths.length === 0) {
+    await dialog.info({
+      title: '提示',
+      message: '请输入或选择项目路径',
+    });
+    return;
+  }
+
+  showFillModal.value = false;
+  report.loading.value = true;
+
+  try {
+    const addedCount = await report.fillCommitsFromProjects(appConfig.value.reportPath, paths, report.selectedDate.value);
+    
+    if (addedCount > 0) {
+      await dialog.info({
+        title: '完成',
+        message: `补全完成，共添加 ${addedCount} 条提交记录`,
+      });
+    } else {
+      await dialog.info({
+        title: '完成',
+        message: '未发现新的提交记录',
+      });
+    }
+
+    await handleLoadGitLogs();
+  } catch (error) {
+    await dialog.error({
+      title: '补全失败',
+      message: String(error),
+    });
   } finally {
     report.loading.value = false;
   }
@@ -234,6 +301,7 @@ watch(
             <button class="btn-icon" @click="changeDate(-1)" title="前一天">‹</button>
             <input type="date" class="date-input" v-model="report.selectedDate.value" />
             <button class="btn-icon" @click="changeDate(1)" title="后一天">›</button>
+            <button class="btn-fill" @click="showFillModal = true" title="补全提交记录">补全</button>
           </div>
         </div>
 
@@ -340,6 +408,36 @@ watch(
         </div>
       </div>
     </div>
+
+    <div v-if="showFillModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>补全提交记录</h3>
+          <button class="close-btn" @click="showFillModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>项目路径</label>
+            <div class="path-input-container">
+              <textarea 
+                v-model="projectPathsInput" 
+                class="path-textarea" 
+                placeholder="请输入项目路径，每行一个&#10;例如：&#10;E:/projects/my-project&#10;D:/workspace/another-project"
+              />
+            </div>
+            <button class="btn-select-dir" @click="handleSelectDirectories">选择目录</button>
+          </div>
+          <div class="form-group">
+            <label>目标日期</label>
+            <input type="date" v-model="report.selectedDate.value" class="date-input" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="showFillModal = false">取消</button>
+          <button class="btn-save" @click="handleFillCommits">确定</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -409,6 +507,27 @@ watch(
 .btn-icon:hover {
   background: var(--bg-sidebar);
   color: var(--text-primary);
+}
+
+.btn-fill {
+  padding: 6px 12px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-fill:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.btn-fill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .date-input {
@@ -967,5 +1086,45 @@ watch(
   font-family: monospace;
   font-size: 13px;
   color: var(--text-regular);
+}
+
+.path-input-container {
+  margin-bottom: 8px;
+}
+
+.path-textarea {
+  width: 100%;
+  height: 120px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-family: monospace;
+  color: var(--text-regular);
+  background: var(--bg-main);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.path-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.btn-select-dir {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text-regular);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-select-dir:hover {
+  background: var(--bg-sidebar);
+  border-color: var(--text-muted);
 }
 </style>
