@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
         version: version,
         icon: ['icon.ico'],
         window: {
-          title: 'Git2Report - Git 工作报告生成器',
+          title: `Git2Report - v${version}`,
           width: 1200,
           height: 700,
           center: true,
