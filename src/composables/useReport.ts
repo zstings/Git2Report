@@ -20,7 +20,9 @@ export function useReport() {
   const dailyArchive = ref<Record<string, string>>({});
 
   const filteredGitLogs = computed(() => {
-    return gitLogs.value.filter(log => !ignoredProjectPaths.value.has(log.projectPath));
+    return gitLogs.value
+      .filter(log => !ignoredProjectPaths.value.has(log.projectPath))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   });
 
   const gitLogsText = computed(() => {
@@ -242,6 +244,7 @@ diff_end`;
         'log',
         '--all',
         '--no-merges',
+        '--reverse',
         `--since="${targetDate} 00:00"`,
         `--until="${targetDate} 23:59"`,
         '--pretty=format:%H|||%ai|||%s|||%b[COMMIT_SEP]',
