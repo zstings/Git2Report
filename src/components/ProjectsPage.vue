@@ -18,9 +18,11 @@ const projects = ref<GitProject[]>([]);
 const searchQuery = ref('');
 const showEditModal = ref(false);
 const showAddModal = ref(false);
+const showScanModal = ref(false);
 const editingProject = ref<GitProject | null>(null);
 const editNameInput = ref('');
 const addProjectPathsInput = ref('');
+const scanPathsInput = ref('');
 
 const filteredProjects = computed(() => {
   let result = projects.value;
@@ -231,82 +233,55 @@ function closeAddModal() {
   addProjectPathsInput.value = '';
 }
 
-async function getDisks(): Promise<string[]> {
-  try {
-    if (process.platform === 'win32') {
-      const result = await shell.exec('wmic', ['logicaldisk', 'get', 'name']);
-      if (result.success && result.stdout) {
-        const disks = result.stdout
-          .split('\n')
-          .map(line => line.trim())
-          .filter(line => /^[A-Z]:$/.test(line))
-          .map(disk => `${disk}\\`);
-        return disks;
-      }
-      return ['C:\\', 'D:\\', 'E:\\'];
-    } else {
-      return ['/'];
-    }
-  } catch {
-    return process.platform === 'win32' ? ['C:\\', 'D:\\', 'E:\\'] : ['/'];
+function closeScanModal() {
+  showScanModal.value = false;
+  scanPathsInput.value = '';
+}
+
+async function handleSelectDirectoriesForScan() {
+  const result = await dialog.showOpenDialog({
+    title: '选择扫描起始目录',
+    multiple: true,
+    directory: true,
+  });
+  
+  if (result && result.length > 0) {
+    const existingPaths = scanPathsInput.value
+      .split('\n')
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+    
+    const newPaths = result.filter(p => !existingPaths.includes(p));
+    scanPathsInput.value = [...existingPaths, ...newPaths].join('\n');
   }
 }
 
-async function scanDirectoryForGit(dir: string, foundProjects: string[]): Promise<void> {
-  try {
-    const entries = await fs.readdir(dir);
-
-    for (const entry of entries) {
-      const fullPath = await path.join(dir, entry);
-      
-      try {
-        const stat = await fs.stat(fullPath);
-        if (!stat.isDirectory()) {
-          continue;
-        }
-
-        // 跳过隐藏目录和常见的不需要扫描的目录
-        if (entry.startsWith('.') || 
-            ['node_modules', 'target', 'build', 'dist', '.git', 'vendor'].includes(entry)) {
-          continue;
-        }
-
-        // 检查是否是Git仓库
-        const gitDir = await path.join(fullPath, '.git');
-        if (await fs.exists(gitDir)) {
-          foundProjects.push(fullPath);
-          continue; // 找到Git仓库后不继续扫描子目录
-        }
-
-        // 继续递归扫描子目录
-        await scanDirectoryForGit(fullPath, foundProjects);
-      } catch {
-        // 忽略单个目录扫描错误
-      }
-    }
-  } catch {
-    // 忽略目录读取错误
+async function handleStartScan() {
+  const scanPaths = scanPathsInput.value.trim().split('\n').filter(p => p.trim());
+  
+  if (scanPaths.length === 0) {
+    await dialog.info({
+      title: '提示',
+      message: '请输入或选择至少一个扫描起始目录',
+    });
+    return;
   }
+  
+  closeScanModal();
+  await performScan(scanPaths);
 }
 
-async function handleScanAll() {
+async function performScan(scanPaths: string[]) {
   loading.value = true;
   let addedCount = 0;
 
   try {
-    await dialog.info({
-      title: '提示',
-      message: '开始全量扫描，这可能需要一些时间，请耐心等待...',
-    });
-
-    const disks = await getDisks();
-    console.log('[全量扫描] 扫描磁盘:', disks);
-
     const foundProjects: string[] = [];
-    const scanPromises = disks.map(disk => scanDirectoryForGit(disk, foundProjects));
+    
+    const scanPromises = scanPaths.map(scanPath => 
+      scanFromDirectory(scanPath, foundProjects)
+    );
     await Promise.all(scanPromises);
-
-    console.log('[全量扫描] 发现项目:', foundProjects);
 
     if (foundProjects.length === 0) {
       await dialog.info({
@@ -331,22 +306,42 @@ async function handleScanAll() {
       }
     }
 
-    if (addedCount > 0) {
+    if (newProjects.length > 0) {
       projects.value = [...projects.value, ...newProjects];
       await saveProjects();
     }
 
     await dialog.info({
       title: '完成',
-      message: `扫描完成，共发现 ${foundProjects.length} 个项目，新增 ${addedCount} 个`,
+      message: `扫描完成，新增 ${newProjects.length} 个项目`,
     });
   } catch (error) {
+    console.error('[全量扫描] 扫描失败:', error);
     await dialog.error({
-      title: '扫描失败',
-      message: String(error),
+      title: '错误',
+      message: `扫描失败: ${error}`,
     });
   } finally {
     loading.value = false;
+  }
+}
+
+async function scanFromDirectory(startPath: string, foundProjects: string[]): Promise<void> {
+  try {
+    const gitDirs = await fs.glob({
+      pattern: '**/.git',
+      cwd: startPath,
+      absolute: true,
+      dot: true,
+    });
+    
+    for (const gitDir of gitDirs) {
+      const projectPath = gitDir.replace(/[\\/]?\.git$/, '');
+      if (projectPath && !foundProjects.includes(projectPath)) {
+        foundProjects.push(projectPath);
+      }
+    }
+  } catch {
   }
 }
 
@@ -365,7 +360,7 @@ onMounted(async () => {
       </div>
       <div class="header-buttons">
         <button class="btn-add" @click="showAddModal = true" :disabled="loading">添加项目</button>
-        <button class="btn-scan" @click="handleScanAll" :disabled="loading">全量扫描</button>
+        <button class="btn-scan" @click="showScanModal = true" :disabled="loading">全量扫描</button>
       </div>
     </div>
 
@@ -462,6 +457,35 @@ onMounted(async () => {
           <button class="btn-cancel" @click="closeAddModal">取消</button>
           <button class="btn-save" @click="handleAddProjects" :disabled="loading">
             {{ loading ? '添加中...' : '确定' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 扫描弹窗 -->
+    <div v-if="showScanModal" class="modal-overlay">
+      <div class="modal add-modal">
+        <div class="modal-header">
+          <h3>全量扫描</h3>
+          <button class="close-btn" @click="closeScanModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>扫描起始目录</label>
+            <div class="path-input-container">
+              <textarea
+                v-model="scanPathsInput"
+                class="path-textarea"
+                placeholder="请输入扫描起始目录，每行一个&#10;例如：&#10;C:\Users&#10;D:\Projects"
+              />
+            </div>
+            <button class="btn-select-dir" @click="handleSelectDirectoriesForScan">选择目录</button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="closeScanModal">取消</button>
+          <button class="btn-save" @click="handleStartScan" :disabled="loading">
+            {{ loading ? '扫描中...' : '开始扫描' }}
           </button>
         </div>
       </div>
