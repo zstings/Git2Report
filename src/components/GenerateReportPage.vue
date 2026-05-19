@@ -4,7 +4,7 @@ import { useAI } from '../composables/useAI';
 import { useConfig } from '../composables/useConfig';
 import { useReport } from '../composables/useReport';
 import { useProjects } from '../composables/useProjects';
-import { clipboard, dialog } from 'vokex.app';
+import { dialog } from 'vokex.app';
 
 const { config: aiConfig, loadConfig: loadAIConfig, saveConfig: saveAIConfig } = useAI();
 const { config: appConfig, loadConfig: loadAppConfig } = useConfig();
@@ -72,7 +72,7 @@ async function handleSelectDirectories() {
   });
 
   console.log('[选择目录] 返回结果:', result, '类型:', Array.isArray(result));
-  
+
   if (result && result.length > 0) {
     const existingPaths = projectPathsInput.value.trim().split('\n').filter(p => p.trim());
     const newPaths = [...new Set([...existingPaths, ...result])];
@@ -104,7 +104,7 @@ async function handleFillCommits() {
 
   try {
     const addedCount = await report.fillCommitsFromProjects(appConfig.value.reportPath, paths, report.selectedDate.value);
-    
+
     if (addedCount > 0) {
       await dialog.info({
         title: '完成',
@@ -177,9 +177,26 @@ async function handleGenerateReport() {
   }
 }
 
+function selectElementText(element: HTMLElement) {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  const selection = window.getSelection()!;
+  selection.removeAllRanges(); // 清除已有选中
+  selection.addRange(range);
+}
+
 async function handleCopyReport() {
   if (!report.generatedReport.value) return;
-  await clipboard.writeText(report.generatedReport.value);
+  const dom = document.querySelector('.report-preview') as HTMLElement;
+  if (!dom) return;
+  const docx = dom.cloneNode(true) as HTMLElement;
+  docx.style.backgroundColor = 'white';
+  dom.appendChild(docx);
+  selectElementText(docx);
+  document.execCommand('copy');
+  dom.removeChild(docx);
+  docx.remove();
+  // await clipboard.writeText(report.generatedReport.value);
   await dialog.info({
     title: '成功',
     message: '报告已复制到剪贴板',
@@ -237,40 +254,83 @@ function changeDate(days: number) {
 
 function renderMarkdown(text: string | undefined): string {
   if (!text || typeof text !== 'string') return '';
+
   try {
-    let result = text
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
-      .replace(/\*(.*)\*/gim, '<em>$1</em>')
-      .replace(/`(.*?)`/gim, '<code>$1</code>');
-    const lines = result.split('\n');
-    let inList = false;
-    result = '';
+    const lines = text.split('\n');
+    let html = '';
+    const listStack: number[] = []; // 记录当前缩进层级
+
+    const closeLists = (toLevel: number) => {
+      while (listStack.length > toLevel) {
+        html += '</ul>';
+        listStack.pop();
+      }
+    };
+
     for (const line of lines) {
-      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-        if (!inList) {
-          result += '<ul>';
-          inList = true;
+      const trimmedLine = line.trim();
+      if (!trimmedLine) {
+        closeLists(0);
+        continue;
+      }
+
+      // 1. 处理标题 (##### [项目A])
+      if (/^#{1,6}\s/.test(trimmedLine)) {
+        closeLists(0);
+        const level = trimmedLine.match(/^#+/)?.[0].length || 1;
+        const content = trimmedLine.replace(/^#+\s+/, '');
+        // 转换内部的加粗等格式
+        const formattedContent = formatInline(content);
+        html += `<h${level}>${formattedContent}</h${level}>`;
+        continue;
+      }
+
+      // 2. 处理分割线 (---)
+      if (/^[-*_]{3,}$/.test(trimmedLine)) {
+        closeLists(0);
+        html += '<hr style="border:none;border-top:1px solid #e6e5e6;margin:10px 0;" />';
+        continue;
+      }
+
+      // 3. 处理列表 (支持多级缩进)
+      const listMatch = line.match(/^(\s*)([-*])\s+(.*)$/);
+      if (listMatch) {
+        const indent = listMatch[1]?.length || 0;
+        const content = formatInline(listMatch[3] || '');
+
+        // 简单的层级判定：根据空格长度划分（0-1格为L1，2格以上为L2）
+        const currentLevel = indent === 0 ? 1 : 2;
+
+        if (currentLevel > listStack.length) {
+          html += '<ul style="list-style-type: disc; padding-left: 20px;">';
+          listStack.push(currentLevel);
+        } else if (currentLevel < listStack.length) {
+          closeLists(currentLevel);
         }
-        result += `<li>${line.trim().substring(2)}</li>`;
+
+        html += `<li>${content}</li>`;
       } else {
-        if (inList) {
-          result += '</ul>';
-          inList = false;
-        }
-        if (line.trim()) {
-          result += `<p>${line}</p>`;
-        }
+        // 普通文本行
+        closeLists(0);
+        html += `<p>${formatInline(line)}</p>`;
       }
     }
-    if (inList) result += '</ul>';
-    return result;
+
+    closeLists(0);
+    return html;
   } catch (error) {
-    console.error('渲染 Markdown 失败:', error);
+    console.error('渲染失败:', error);
     return '';
   }
+}
+
+// 专门处理行内格式，避免全局正则的陷阱
+function formatInline(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // 加粗
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')             // 斜体
+    .replace(/`(.*?)`/g, '<code>$1</code>')           // 代码
+    .replace(/【(.*?)】/g, '<span style="color:#1890ff;font-weight:bold;">【$1】</span>'); // 针对中文括号美化
 }
 
 watch(report.selectedDate, async () => {
@@ -426,9 +486,9 @@ watch(
           <div class="form-group">
             <label>项目路径</label>
             <div class="path-input-container">
-              <textarea 
-                v-model="projectPathsInput" 
-                class="path-textarea" 
+              <textarea
+                v-model="projectPathsInput"
+                class="path-textarea"
                 placeholder="请输入项目路径，每行一个&#10;例如：&#10;E:/projects/my-project&#10;D:/workspace/another-project"
               />
             </div>
@@ -1057,7 +1117,6 @@ watch(
 :deep(.markdown-body) h1,
 :deep(.markdown-body) h2,
 :deep(.markdown-body) h3 {
-  margin-top: 16px;
   margin-bottom: 8px;
   color: var(--text-primary);
   font-weight: 600;
