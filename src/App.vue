@@ -2,8 +2,10 @@
 import { ref, onMounted } from 'vue';
 import InitHooksPage from './components/InitHooksPage.vue';
 import ProjectsPage from './components/ProjectsPage.vue';
+import AppUpdate from './components/AppUpdate.vue';
 import GenerateReportPage from './components/GenerateReportPage.vue';
 import { useDarkMode } from './composables/useDarkMode';
+import { version } from '../package.json';
 
 type Page = 'init' | 'projects' | 'report';
 
@@ -30,7 +32,8 @@ onMounted(() => {
         <div class="header-top">
           <div>
             <h1 class="app-title">Git2Report</h1>
-            <p class="app-subtitle">工作报告生成器</p>
+            <p class="app-subtitle">工作报告生成</p>
+            <p class="app-version">v{{ version }}</p>
           </div>
           <button class="theme-toggle" @click="toggleDark" :title="isDark ? '切换到浅色模式' : '切换到暗黑模式'">
             {{ isDark ? '☀️' : '🌙' }}
@@ -51,8 +54,8 @@ onMounted(() => {
           <span class="nav-text">生成报告</span>
         </button>
       </nav>
-      <div class="sidebar-footer" v-if="false">
-        <p class="footer-text">基于 Vue 3 + Vite</p>
+      <div class="sidebar-footer">
+        <AppUpdate />
       </div>
     </aside>
 
@@ -189,6 +192,13 @@ html.dark *::-webkit-scrollbar-thumb:hover {
 .app-subtitle {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.app-version {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  opacity: 0.7;
 }
 
 .nav {
