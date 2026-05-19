@@ -1,45 +1,91 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { useProjects } from '../composables/useProjects';
+import { ref, computed, onMounted } from 'vue';
 import { useConfig } from '../composables/useConfig';
-import { dialog } from 'vokex.app';
+import { dialog, fs, path, shell, storage } from 'vokex.app';
 
-const { loading, filteredProjects, searchQuery, loadProjects, scanAllProjects, toggleProjectIgnore, setProjectDisplayName, getProjectDisplayName, setSearchQuery } = useProjects();
-const { config, loadConfig } = useConfig();
+const STORAGE_KEY = 'git2report_projects';
 
-const showEditModal = ref(false);
-const editingProject = ref<{ localPath: string; currentName: string } | null>(null);
-const editNameInput = ref('');
-
-async function handleScanAllLogs() {
-  if (!config.value.reportPath) {
-    await dialog.info({
-      title: '提示',
-      message: '请先在初始化页面设置报告存放目录',
-    });
-    return;
-  }
-
-  const count = await scanAllProjects(config.value.reportPath);
-  await dialog.info({
-    title: '完成',
-    message: count > 0 ? `扫描完成，共发现 ${count} 个项目` : '扫描完成，未发现项目',
-  });
+interface GitProject {
+  localPath: string;
+  remoteUrl: string;
+  isIgnored?: boolean;
+  displayName?: string;
 }
 
-function openEditModal(project: typeof filteredProjects.value[0]) {
-  editingProject.value = {
-    localPath: project.localPath,
-    currentName: getProjectDisplayName(project),
-  };
+const { config, loadConfig } = useConfig();
+const loading = ref(false);
+const projects = ref<GitProject[]>([]);
+const searchQuery = ref('');
+const showEditModal = ref(false);
+const showAddModal = ref(false);
+const editingProject = ref<GitProject | null>(null);
+const editNameInput = ref('');
+const addProjectPathsInput = ref('');
+
+const filteredProjects = computed(() => {
+  let result = projects.value;
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase().trim();
+    result = result.filter(project => {
+      const projectName = project.localPath.split(/[\\/]/).pop()?.toLowerCase() || '';
+      const path = project.localPath.toLowerCase();
+      const remote = project.remoteUrl.toLowerCase();
+      return projectName.includes(query) || path.includes(query) || remote.includes(query);
+    });
+  }
+  return result;
+});
+
+function getProjectDisplayName(project: GitProject): string {
+  if (project.displayName) {
+    return project.displayName;
+  }
+  return project.localPath.split(/[\\/]/).pop() || '未知项目';
+}
+
+async function saveProjects() {
+  try {
+    await storage.setData(STORAGE_KEY, projects.value);
+  } catch (error) {
+    console.error('保存项目列表失败:', error);
+  }
+}
+
+async function loadProjects() {
+  loading.value = true;
+  try {
+    const savedProjects = await storage.getData(STORAGE_KEY);
+    if (savedProjects && Array.isArray(savedProjects)) {
+      projects.value = savedProjects;
+    }
+  } catch (error) {
+    console.error('加载项目失败:', error);
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function toggleProjectIgnore(projectPath: string) {
+  const project = projects.value.find(p => p.localPath === projectPath);
+  if (project) {
+    project.isIgnored = !project.isIgnored;
+    await saveProjects();
+  }
+}
+
+function openEditModal(project: GitProject) {
+  editingProject.value = project;
   editNameInput.value = project.displayName || '';
   showEditModal.value = true;
 }
 
 async function saveDisplayName() {
   if (!editingProject.value) return;
-
-  await setProjectDisplayName(editingProject.value.localPath, editNameInput.value);
+  const project = projects.value.find(p => p.localPath === editingProject.value!.localPath);
+  if (project) {
+    project.displayName = editNameInput.value.trim() || undefined;
+    await saveProjects();
+  }
   showEditModal.value = false;
   editingProject.value = null;
   editNameInput.value = '';
@@ -51,11 +97,262 @@ function closeEditModal() {
   editNameInput.value = '';
 }
 
+async function handleSelectDirectoriesForAdd() {
+  const result = await dialog.showOpenDialog({
+    title: '选择 Git 项目目录',
+    multiple: true,
+    directory: true,
+    defaultPath: '',
+  });
+
+  console.log('[选择目录] 返回结果:', result, '类型:', typeof result, '是否数组:', Array.isArray(result));
+
+  // 检查各种可能的返回格式
+  let selectedPaths: string[] = [];
+  if (Array.isArray(result) && result.length > 0) {
+    selectedPaths = result;
+  } else if (typeof result === 'string' && result) {
+    selectedPaths = [result];
+  }
+
+  console.log('[选择目录] 解析到的路径:', selectedPaths);
+
+  if (selectedPaths.length > 0) {
+    const existingPaths = addProjectPathsInput.value.trim().split('\n').filter(p => p.trim());
+    const newPaths = [...new Set([...existingPaths, ...selectedPaths])];
+    addProjectPathsInput.value = newPaths.join('\n');
+    console.log('[选择目录] 更新后的输入:', addProjectPathsInput.value);
+  }
+}
+
+async function validateAndGetProject(localPath: string): Promise<GitProject | null> {
+  try {
+    const gitDir = await path.join(localPath, '.git');
+    console.log('[验证项目] 检查 .git 目录:', gitDir);
+    
+    const exists = await fs.exists(gitDir);
+    console.log('[验证项目] .git 目录是否存在:', exists);
+    
+    if (!exists) {
+      return null;
+    }
+
+    let remoteUrl = 'none';
+    try {
+      const result = await shell.exec('git', ['config', '--get', 'remote.origin.url'], { cwd: localPath });
+      console.log('[验证项目] 获取远程 URL 结果:', result);
+      
+      if (result.success && result.stdout) {
+        remoteUrl = result.stdout.trim();
+      }
+    } catch (e) {
+      console.log('[验证项目] 获取远程 URL 失败:', e);
+      // 忽略获取远程URL失败的情况
+    }
+
+    const project = {
+      localPath,
+      remoteUrl,
+    };
+    console.log('[验证项目] 返回项目:', project);
+    
+    return project;
+  } catch (e) {
+    console.error('[验证项目] 异常:', e);
+    return null;
+  }
+}
+
+async function handleAddProjects() {
+  const paths = addProjectPathsInput.value.trim().split('\n').filter(p => p.trim());
+  console.log('[添加项目] 要处理的路径:', paths);
+  
+  if (paths.length === 0) {
+    await dialog.info({
+      title: '提示',
+      message: '请输入或选择项目路径',
+    });
+    return;
+  }
+
+  loading.value = true;
+  let addedCount = 0;
+
+  try {
+    const existingPaths = new Set(projects.value.map(p => p.localPath));
+    console.log('[添加项目] 已存在的路径:', Array.from(existingPaths));
+    
+    const newProjects: GitProject[] = [];
+
+    for (const localPath of paths) {
+      console.log('[添加项目] 检查路径:', localPath);
+      
+      if (existingPaths.has(localPath)) {
+        console.log('[添加项目] 路径已存在，跳过:', localPath);
+        continue;
+      }
+
+      const project = await validateAndGetProject(localPath);
+      console.log('[添加项目] 验证结果:', project);
+      
+      if (project) {
+        newProjects.push(project);
+        addedCount++;
+      }
+    }
+
+    console.log('[添加项目] 新增项目:', newProjects);
+
+    if (addedCount > 0) {
+      projects.value = [...projects.value, ...newProjects];
+      await saveProjects();
+    }
+
+    showAddModal.value = false;
+    addProjectPathsInput.value = '';
+
+    await dialog.info({
+      title: '完成',
+      message: addedCount > 0 ? `成功添加 ${addedCount} 个项目` : '未添加任何新项目',
+    });
+  } catch (error) {
+    console.error('[添加项目] 错误:', error);
+    await dialog.error({
+      title: '添加失败',
+      message: String(error),
+    });
+  } finally {
+    loading.value = false;
+  }
+}
+
+function closeAddModal() {
+  showAddModal.value = false;
+  addProjectPathsInput.value = '';
+}
+
+async function getDisks(): Promise<string[]> {
+  try {
+    if (process.platform === 'win32') {
+      const result = await shell.exec('wmic', ['logicaldisk', 'get', 'name']);
+      if (result.success && result.stdout) {
+        const disks = result.stdout
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => /^[A-Z]:$/.test(line))
+          .map(disk => `${disk}\\`);
+        return disks;
+      }
+      return ['C:\\', 'D:\\', 'E:\\'];
+    } else {
+      return ['/'];
+    }
+  } catch {
+    return process.platform === 'win32' ? ['C:\\', 'D:\\', 'E:\\'] : ['/'];
+  }
+}
+
+async function scanDirectoryForGit(dir: string, foundProjects: string[]): Promise<void> {
+  try {
+    const entries = await fs.readdir(dir);
+
+    for (const entry of entries) {
+      const fullPath = await path.join(dir, entry);
+      
+      try {
+        const stat = await fs.stat(fullPath);
+        if (!stat.isDirectory()) {
+          continue;
+        }
+
+        // 跳过隐藏目录和常见的不需要扫描的目录
+        if (entry.startsWith('.') || 
+            ['node_modules', 'target', 'build', 'dist', '.git', 'vendor'].includes(entry)) {
+          continue;
+        }
+
+        // 检查是否是Git仓库
+        const gitDir = await path.join(fullPath, '.git');
+        if (await fs.exists(gitDir)) {
+          foundProjects.push(fullPath);
+          continue; // 找到Git仓库后不继续扫描子目录
+        }
+
+        // 继续递归扫描子目录
+        await scanDirectoryForGit(fullPath, foundProjects);
+      } catch {
+        // 忽略单个目录扫描错误
+      }
+    }
+  } catch {
+    // 忽略目录读取错误
+  }
+}
+
+async function handleScanAll() {
+  loading.value = true;
+  let addedCount = 0;
+
+  try {
+    await dialog.info({
+      title: '提示',
+      message: '开始全量扫描，这可能需要一些时间，请耐心等待...',
+    });
+
+    const disks = await getDisks();
+    console.log('[全量扫描] 扫描磁盘:', disks);
+
+    const foundProjects: string[] = [];
+    const scanPromises = disks.map(disk => scanDirectoryForGit(disk, foundProjects));
+    await Promise.all(scanPromises);
+
+    console.log('[全量扫描] 发现项目:', foundProjects);
+
+    if (foundProjects.length === 0) {
+      await dialog.info({
+        title: '完成',
+        message: '未发现任何 Git 项目',
+      });
+      return;
+    }
+
+    const existingPaths = new Set(projects.value.map(p => p.localPath));
+    const newProjects: GitProject[] = [];
+
+    for (const localPath of foundProjects) {
+      if (existingPaths.has(localPath)) {
+        continue;
+      }
+
+      const project = await validateAndGetProject(localPath);
+      if (project) {
+        newProjects.push(project);
+        addedCount++;
+      }
+    }
+
+    if (addedCount > 0) {
+      projects.value = [...projects.value, ...newProjects];
+      await saveProjects();
+    }
+
+    await dialog.info({
+      title: '完成',
+      message: `扫描完成，共发现 ${foundProjects.length} 个项目，新增 ${addedCount} 个`,
+    });
+  } catch (error) {
+    await dialog.error({
+      title: '扫描失败',
+      message: String(error),
+    });
+  } finally {
+    loading.value = false;
+  }
+}
+
 onMounted(async () => {
   await loadConfig();
-  if (config.value.reportPath) {
-    await loadProjects(config.value.reportPath);
-  }
+  await loadProjects();
 });
 </script>
 
@@ -64,16 +361,19 @@ onMounted(async () => {
     <div class="page-header">
       <div class="header-left">
         <h1>已记录的项目</h1>
-        <p class="subtitle">所有已被 Git 钩子记录的项目列表</p>
+        <p class="subtitle">管理 Git 项目列表</p>
       </div>
-      <button class="btn-scan" @click="handleScanAllLogs" :disabled="loading">全量扫描</button>
+      <div class="header-buttons">
+        <button class="btn-add" @click="showAddModal = true" :disabled="loading">添加项目</button>
+        <button class="btn-scan" @click="handleScanAll" :disabled="loading">全量扫描</button>
+      </div>
     </div>
 
     <div class="search-section">
       <div class="search-input-group">
         <span class="search-icon">🔍</span>
-        <input type="text" v-model="searchQuery" @input="setSearchQuery(searchQuery)" placeholder="搜索项目名称或路径..." class="search-input" />
-        <button v-if="searchQuery" class="btn-clear" @click="setSearchQuery('')">×</button>
+        <input type="text" v-model="searchQuery" placeholder="搜索项目名称或路径..." class="search-input" />
+        <button v-if="searchQuery" class="btn-clear" @click="searchQuery = ''">×</button>
       </div>
       <div v-if="searchQuery" class="search-hint">找到 {{ filteredProjects.length }} 个匹配项目</div>
     </div>
@@ -111,9 +411,10 @@ onMounted(async () => {
     <div v-else class="empty-state">
       <div class="empty-icon">📭</div>
       <h2>暂无项目</h2>
-      <p>还没有记录任何项目，点击「扫描日志」从已有的日志文件中识别项目</p>
+      <p>点击「添加项目」手动添加或点击「全量扫描」自动发现项目</p>
     </div>
 
+    <!-- 编辑名称弹窗 -->
     <div v-if="showEditModal" class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
@@ -123,7 +424,7 @@ onMounted(async () => {
         <div class="modal-body">
           <div class="form-group">
             <label>当前名称</label>
-            <input type="text" :value="editingProject?.currentName" disabled class="disabled-input" />
+            <input type="text" :value="editingProject ? getProjectDisplayName(editingProject) : ''" disabled class="disabled-input" />
           </div>
           <div class="form-group">
             <label>自定义名称</label>
@@ -133,6 +434,35 @@ onMounted(async () => {
         <div class="modal-footer">
           <button class="btn-cancel" @click="closeEditModal">取消</button>
           <button class="btn-save" @click="saveDisplayName">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加项目弹窗 -->
+    <div v-if="showAddModal" class="modal-overlay">
+      <div class="modal add-modal">
+        <div class="modal-header">
+          <h3>添加项目</h3>
+          <button class="close-btn" @click="closeAddModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>项目路径</label>
+            <div class="path-input-container">
+              <textarea
+                v-model="addProjectPathsInput"
+                class="path-textarea"
+                placeholder="请输入项目路径，每行一个&#10;例如：&#10;E:/projects/my-project&#10;D:/workspace/another-project"
+              />
+            </div>
+            <button class="btn-select-dir" @click="handleSelectDirectoriesForAdd">选择目录</button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="closeAddModal">取消</button>
+          <button class="btn-save" @click="handleAddProjects" :disabled="loading">
+            {{ loading ? '添加中...' : '确定' }}
+          </button>
         </div>
       </div>
     </div>
@@ -161,12 +491,18 @@ onMounted(async () => {
   font-weight: 600;
 }
 
+.header-buttons {
+  display: flex;
+  gap: 8px;
+}
+
 .subtitle {
   color: var(--text-muted);
   font-size: 13px;
 }
 
-.btn-scan {
+.btn-scan,
+.btn-add {
   padding: 8px 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -179,12 +515,14 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.btn-scan:hover:not(:disabled) {
+.btn-scan:hover:not(:disabled),
+.btn-add:hover:not(:disabled) {
   background: var(--bg-sidebar);
   border-color: var(--text-muted);
 }
 
-.btn-scan:disabled {
+.btn-scan:disabled,
+.btn-add:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -423,7 +761,7 @@ onMounted(async () => {
 
 .empty-state {
   text-align: center;
-  padding: 80px 20px;
+  padding: 60px 20px;
 }
 
 .empty-icon {
@@ -464,6 +802,10 @@ onMounted(async () => {
   width: 90%;
   max-width: 400px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modal.add-modal {
+  max-width: 460px;
 }
 
 .modal-header {
@@ -516,7 +858,8 @@ onMounted(async () => {
   font-size: 13px;
 }
 
-.form-group input {
+.form-group input,
+.form-group textarea {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--color-border);
@@ -529,7 +872,8 @@ onMounted(async () => {
   background: var(--bg-main);
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group textarea:focus {
   outline: none;
   border-color: var(--color-primary);
 }
@@ -576,7 +920,52 @@ onMounted(async () => {
   transition: all 0.15s;
 }
 
-.btn-save:hover {
+.btn-save:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.path-input-container {
+  margin-bottom: 8px;
+}
+
+.path-textarea {
+  width: 100%;
+  height: 120px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-family: monospace;
+  color: var(--text-regular);
+  background: var(--bg-main);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.path-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.btn-select-dir {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text-regular);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-select-dir:hover {
+  background: var(--bg-sidebar);
+  border-color: var(--text-muted);
 }
 </style>
