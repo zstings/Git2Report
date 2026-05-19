@@ -5,6 +5,7 @@ export interface GitProject {
   localPath: string;
   remoteUrl: string;
   isIgnored?: boolean;
+  displayName?: string;
 }
 
 export class GitService {

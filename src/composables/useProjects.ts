@@ -76,12 +76,16 @@ export function useProjects() {
       const allProjects = await gitService.scanProjectsFromLogs(logDir, false);
       console.log(`[全量扫描] 从所有日志中发现 ${allProjects.length} 个项目`);
 
-      // 合并现有项目的忽略状态（不覆盖用户的忽略设置）
-      const existingMap = new Map(projects.value.map(p => [p.localPath, p.isIgnored]));
-      projects.value = allProjects.map(p => ({
-        ...p,
-        isIgnored: existingMap.get(p.localPath),
-      }));
+      // 合并现有项目的忽略状态和自定义名称（不覆盖用户的设置）
+      const existingMap = new Map(projects.value.map(p => [p.localPath, { isIgnored: p.isIgnored, displayName: p.displayName }]));
+      projects.value = allProjects.map(p => {
+        const existing = existingMap.get(p.localPath);
+        return {
+          ...p,
+          isIgnored: existing?.isIgnored,
+          displayName: existing?.displayName,
+        };
+      });
 
       await saveProjects();
       console.log(`[全量扫描] 已更新项目列表`);
@@ -110,6 +114,21 @@ export function useProjects() {
     }
   }
 
+  async function setProjectDisplayName(projectPath: string, displayName: string) {
+    const project = projects.value.find(p => p.localPath === projectPath);
+    if (project) {
+      project.displayName = displayName.trim() || undefined;
+      await saveProjects();
+    }
+  }
+
+  function getProjectDisplayName(project: GitProject): string {
+    if (project.displayName) {
+      return project.displayName;
+    }
+    return project.localPath.split(/[\\/]/).pop() || '未知项目';
+  }
+
   function setSearchQuery(query: string) {
     searchQuery.value = query;
   }
@@ -123,6 +142,8 @@ export function useProjects() {
     loadProjects,
     scanAllProjects,
     toggleProjectIgnore,
+    setProjectDisplayName,
+    getProjectDisplayName,
     setSearchQuery,
   };
 }

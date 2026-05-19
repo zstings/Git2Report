@@ -337,13 +337,25 @@ watch(report.selectedDate, async () => {
   await handleLoadGitLogs();
 });
 
+function updateProjectSettings() {
+  const ignoredPaths = projects.value.filter(p => p.isIgnored).map(p => p.localPath);
+  report.setIgnoredProjects(ignoredPaths);
+  
+  const displayNames = new Map<string, string>();
+  projects.value.forEach(p => {
+    if (p.displayName) {
+      displayNames.set(p.localPath, p.displayName);
+    }
+  });
+  report.setProjectDisplayNames(displayNames);
+}
+
 onMounted(async () => {
   await Promise.all([loadAIConfig(), loadAppConfig()]);
 
   if (appConfig.value.reportPath) {
     await loadProjects(appConfig.value.reportPath);
-    const ignoredPaths = projects.value.filter(p => p.isIgnored).map(p => p.localPath);
-    report.setIgnoredProjects(ignoredPaths);
+    updateProjectSettings();
     await report.loadDailyArchive(appConfig.value.reportPath);
     await handleLoadGitLogs();
   }
@@ -352,8 +364,7 @@ onMounted(async () => {
 watch(
   () => projects.value,
   () => {
-    const ignoredPaths = projects.value.filter(p => p.isIgnored).map(p => p.localPath);
-    report.setIgnoredProjects(ignoredPaths);
+    updateProjectSettings();
   },
   { deep: true },
 );

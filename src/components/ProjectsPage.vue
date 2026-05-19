@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useProjects } from '../composables/useProjects';
 import { useConfig } from '../composables/useConfig';
 import { dialog } from 'vokex.app';
 
-const { loading, filteredProjects, searchQuery, loadProjects, scanAllProjects, toggleProjectIgnore, setSearchQuery } = useProjects();
+const { loading, filteredProjects, searchQuery, loadProjects, scanAllProjects, toggleProjectIgnore, setProjectDisplayName, getProjectDisplayName, setSearchQuery } = useProjects();
 const { config, loadConfig } = useConfig();
+
+const showEditModal = ref(false);
+const editingProject = ref<{ localPath: string; currentName: string } | null>(null);
+const editNameInput = ref('');
 
 async function handleScanAllLogs() {
   if (!config.value.reportPath) {
@@ -21,6 +25,30 @@ async function handleScanAllLogs() {
     title: '完成',
     message: count > 0 ? `扫描完成，共发现 ${count} 个项目` : '扫描完成，未发现项目',
   });
+}
+
+function openEditModal(project: typeof filteredProjects.value[0]) {
+  editingProject.value = {
+    localPath: project.localPath,
+    currentName: getProjectDisplayName(project),
+  };
+  editNameInput.value = project.displayName || '';
+  showEditModal.value = true;
+}
+
+async function saveDisplayName() {
+  if (!editingProject.value) return;
+
+  await setProjectDisplayName(editingProject.value.localPath, editNameInput.value);
+  showEditModal.value = false;
+  editingProject.value = null;
+  editNameInput.value = '';
+}
+
+function closeEditModal() {
+  showEditModal.value = false;
+  editingProject.value = null;
+  editNameInput.value = '';
 }
 
 onMounted(async () => {
@@ -58,21 +86,25 @@ onMounted(async () => {
     <div v-else-if="filteredProjects.length > 0" class="projects-grid">
       <div v-for="(project, index) in filteredProjects" :key="index" class="project-card" :class="{ 'project-ignored': project.isIgnored }">
         <div class="project-initials">
-          {{ project.localPath.split(/[\\/]/).pop()?.charAt(0).toUpperCase() || '?' }}
+          {{ getProjectDisplayName(project).charAt(0).toUpperCase() || '?' }}
         </div>
         <div class="project-details">
           <div class="project-name">
-            {{ project.localPath.split(/[\\/]/).pop() }}
+            {{ getProjectDisplayName(project) }}
             <span v-if="project.isIgnored" class="ignore-tag">已忽略</span>
+            <span v-if="project.displayName" class="custom-name-tag">自定义</span>
           </div>
           <div class="project-path">{{ project.localPath }}</div>
           <div v-if="project.remoteUrl !== 'none'" class="project-remote">
             {{ project.remoteUrl }}
           </div>
         </div>
-        <button class="btn-ignore" @click="toggleProjectIgnore(project.localPath)">
-          {{ project.isIgnored ? '取消忽略' : '忽略' }}
-        </button>
+        <div class="project-actions">
+          <button class="btn-edit" @click="openEditModal(project)">修改名称</button>
+          <button class="btn-ignore" @click="toggleProjectIgnore(project.localPath)">
+            {{ project.isIgnored ? '取消忽略' : '忽略' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -80,6 +112,29 @@ onMounted(async () => {
       <div class="empty-icon">📭</div>
       <h2>暂无项目</h2>
       <p>还没有记录任何项目，点击「扫描日志」从已有的日志文件中识别项目</p>
+    </div>
+
+    <div v-if="showEditModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>修改项目名称</h3>
+          <button class="close-btn" @click="closeEditModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>当前名称</label>
+            <input type="text" :value="editingProject?.currentName" disabled class="disabled-input" />
+          </div>
+          <div class="form-group">
+            <label>自定义名称</label>
+            <input v-model="editNameInput" type="text" placeholder="输入自定义名称（留空则使用默认名称）" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="closeEditModal">取消</button>
+          <button class="btn-save" @click="saveDisplayName">保存</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -242,6 +297,7 @@ onMounted(async () => {
   align-items: flex-start;
   border: 1px solid var(--color-border);
   transition: all 0.15s;
+  position: relative;
 }
 
 .project-card:hover {
@@ -290,6 +346,18 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
+.custom-name-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--color-primary);
+  color: var(--bg-panel);
+  border-radius: 4px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 0;
+}
+
 .project-path {
   font-size: 12px;
   color: var(--text-muted);
@@ -305,6 +373,32 @@ onMounted(async () => {
   font-family: monospace;
   word-break: break-all;
   line-height: 1.4;
+}
+
+.project-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.btn-edit {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-main);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.btn-edit:hover {
+  background: var(--bg-sidebar);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .btn-ignore {
@@ -349,5 +443,140 @@ onMounted(async () => {
   color: var(--text-muted);
   line-height: 1.5;
   font-size: 13px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--bg-panel);
+  border-radius: calc(var(--radius-md) + 4px);
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin: 0;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--text-regular);
+  font-size: 13px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+  font-family: inherit;
+  color: var(--text-regular);
+  background: var(--bg-main);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.form-group input.disabled-input {
+  background: var(--bg-sidebar);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-regular);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-cancel:hover {
+  background: var(--bg-sidebar);
+}
+
+.btn-save {
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-save:hover {
+  opacity: 0.9;
 }
 </style>

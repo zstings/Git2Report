@@ -14,6 +14,7 @@ export function useReport() {
 
   const gitLogs = ref<GitCommitLog[]>([]);
   const ignoredProjectPaths = ref<Set<string>>(new Set());
+  const projectDisplayNames = ref<Map<string, string>>(new Map());
   const userNotes = ref('');
   const generatedReport = ref('');
   const thinkingContent = ref('');
@@ -28,7 +29,8 @@ export function useReport() {
   const gitLogsText = computed(() => {
     return filteredGitLogs.value
       .map(log => {
-        return `项目：${log.projectName}
+        const displayName = projectDisplayNames.value.get(log.projectPath) || log.projectName;
+        return `项目：${displayName}
 时间：${log.date}
 内容：${log.content}
 diff_start
@@ -76,6 +78,10 @@ diff_end`;
 
   function setIgnoredProjects(paths: string[]) {
     ignoredProjectPaths.value = new Set(paths);
+  }
+
+  function setProjectDisplayNames(names: Map<string, string>) {
+    projectDisplayNames.value = names;
   }
 
   async function loadGitLogs(reportPath: string, date: string) {
@@ -346,6 +352,7 @@ diff_end`;
     setUserNotes,
     setGeneratedReport,
     setIgnoredProjects,
+    setProjectDisplayNames,
     formatDate,
     fillCommitsFromProjects,
   };
