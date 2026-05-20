@@ -39,6 +39,10 @@ const filteredProjects = computed(() => {
   return result;
 });
 
+function normalizePath(path: string) {
+  return path.replace(/\\/g, '/')
+}
+
 function getProjectDisplayName(project: GitProject): string {
   if (project.displayName) {
     return project.displayName;
@@ -61,7 +65,12 @@ async function loadProjects() {
   try {
     const savedProjects = await storage.getData(STORAGE_KEY);
     if (savedProjects && Array.isArray(savedProjects)) {
+      // 标准化路径
+      savedProjects.forEach(project => {
+        project.localPath = normalizePath(project.localPath);
+      });
       projects.value = savedProjects;
+      saveProjects();
       console.log('加载项目列表:', projects.value);
     }
   } catch (error) {
@@ -191,7 +200,7 @@ async function handleAddProjects() {
   let updatedCount = 0; // 更新项目数量
   try {
     for (const localPath of paths) {
-      const normalizedPath = localPath.replace(/\\/g, '/');
+      const normalizedPath = normalizePath(localPath);
       const project = await validateAndGetProject(normalizedPath);
       if (project) {
         const item = projects.value.find(p => p.localPath === normalizedPath)!;
@@ -307,7 +316,7 @@ async function performScan(scanPaths: string[]) {
     }
 
     for (const localPath of foundProjects) {
-      const normalizedPath = localPath.replace(/\\/g, '/');
+      const normalizedPath = normalizePath(localPath);
       const project = await validateAndGetProject(normalizedPath);
       if (project) {
         const existing = projects.value.find(p => p.localPath === normalizedPath);
