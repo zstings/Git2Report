@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import InitHooksPage from './components/InitHooksPage.vue';
 import ProjectsPage from './components/ProjectsPage.vue';
+import InitHooksPage from './components/InitHooksPage.vue';
 import AppUpdate from './components/AppUpdate.vue';
 import GenerateReportPage from './components/GenerateReportPage.vue';
 import { useDarkMode } from './composables/useDarkMode';
@@ -9,7 +9,7 @@ import { version } from '../package.json';
 
 type Page = 'init' | 'projects' | 'report';
 
-const currentPage = ref<Page>('init');
+const currentPage = ref<Page>('projects');
 const projectsPageKey = ref(0);
 const { isDark, initTheme, toggleDark } = useDarkMode();
 
@@ -42,8 +42,8 @@ onMounted(() => {
       </div>
       <nav class="nav">
         <button class="nav-item" :class="{ active: currentPage === 'init' }" @click="navigateTo('init')">
-          <span class="nav-icon">🔧</span>
-          <span class="nav-text">初始化钩子</span>
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-text">系统设置</span>
         </button>
         <button class="nav-item" :class="{ active: currentPage === 'projects' }" @click="navigateTo('projects')">
           <span class="nav-icon">📂</span>

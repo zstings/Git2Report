@@ -1,4 +1,4 @@
-import { http, safeStorage, fs, path, shell } from 'vokex.app';
+import { http, safeStorage, fs, path } from 'vokex.app';
 import { todaySystemPrompt } from '../utils';
 
 export interface AIConfig {
@@ -305,7 +305,7 @@ ${archiveSummaries.map(summary => `---\n日期：${summary.date}\n${summary.cont
       }
 
       const logs: GitCommitLog[] = [];
-      
+
       // 匹配格式：----------{HASH}-o---------- 开头，----------{HASH}-e---------- 结尾
       const startMarkerRegex = /----------([0-9a-f]+)-o----------/g;
       let match;

@@ -8,7 +8,7 @@ import { dialog, storage } from 'vokex.app';
 
 const { config: aiConfig, loadConfig: loadAIConfig, saveConfig: saveAIConfig } = useAI();
 const { config: appConfig, loadConfig: loadAppConfig } = useConfig();
-const { projects, loadProjects } = useProjects();
+const { loadProjects } = useProjects();
 const report = useReport();
 
 const showAIConfig = ref(false);
@@ -270,28 +270,12 @@ watch(report.selectedDate, async () => {
   await handleLoadGitLogs();
 });
 
-function updateProjectSettings() {
-  const ignoredPaths = projects.value.filter(p => p.isIgnored).map(p => p.localPath);
-  report.setIgnoredProjects(ignoredPaths);
-
-  const displayNames = new Map<string, string>();
-  projects.value.forEach(p => {
-    if (p.displayName) {
-      displayNames.set(p.localPath, p.displayName);
-    }
-  });
-  report.setProjectDisplayNames(displayNames);
-}
-
 onMounted(async () => {
   await Promise.all([loadAIConfig(), loadAppConfig()]);
 
-  if (appConfig.value.reportPath) {
-    await loadProjects(appConfig.value.reportPath);
-    updateProjectSettings();
-    await report.loadDailyArchive(appConfig.value.reportPath);
-    await handleLoadGitLogs();
-  }
+  await loadProjects();
+  await report.loadDailyArchive(appConfig.value.reportPath);
+  await handleLoadGitLogs();
 });
 </script>
 
@@ -1058,45 +1042,5 @@ onMounted(async () => {
   font-family: monospace;
   font-size: 13px;
   color: var(--text-regular);
-}
-
-.path-input-container {
-  margin-bottom: 8px;
-}
-
-.path-textarea {
-  width: 100%;
-  height: 120px;
-  padding: 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  font-family: monospace;
-  color: var(--text-regular);
-  background: var(--bg-main);
-  resize: vertical;
-  box-sizing: border-box;
-}
-
-.path-textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.btn-select-dir {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--bg-panel);
-  color: var(--text-regular);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-select-dir:hover {
-  background: var(--bg-sidebar);
-  border-color: var(--text-muted);
 }
 </style>
