@@ -101,13 +101,41 @@ diff_end`;
   async function fetchGitLogsFromProjects(projectPaths: string[], targetDate: string): Promise<import('../services/aiService').GitCommitLog[]> {
     const { shell, path: pathUtil } = await import('vokex.app');
 
+    console.log(`[获取提交] 开始从 ${projectPaths.length} 个项目获取 ${targetDate} 的提交记录`);
+
     // 定义单个项目抓取函数
     const fetchProjectLogs = async (projectPath: string): Promise<import('../services/aiService').GitCommitLog[]> => {
       const normalizedPath = projectPath.replace(/\\/g, '/');
+      const projectName = normalizedPath.split('/').pop() || normalizedPath.split('\\').pop() || '未知项目';
       const logs: import('../services/aiService').GitCommitLog[] = [];
 
-      // 从 Git 仓库抓取日志
-      const gitLogResult = await shell.exec('git', [
+      console.log(`[获取提交] 项目: ${projectName} (${normalizedPath})`);
+
+      // 获取当前项目的 git user 配置
+      const gitUserResult = await shell.exec('git', [
+        '-C', normalizedPath,
+        'config',
+        'user.name',
+      ]);
+
+      const gitEmailResult = await shell.exec('git', [
+        '-C', normalizedPath,
+        'config',
+        'user.email',
+      ]);
+
+      const currentUserName = gitUserResult.success ? gitUserResult.stdout.trim() : '';
+      const currentUserEmail = gitEmailResult.success ? gitEmailResult.stdout.trim() : '';
+
+      console.log(`[获取提交] 当前 Git 用户: ${currentUserName} <${currentUserEmail}>`);
+
+      if (!currentUserName && !currentUserEmail) {
+        console.log(`[获取提交] 无法获取当前项目的 Git 用户信息，跳过该项目`);
+        return logs;
+      }
+
+      // 构建 git log 参数
+      const gitLogArgs = [
         '-C', normalizedPath,
         'log',
         '--all',
@@ -115,24 +143,38 @@ diff_end`;
         '--reverse',
         `--since="${targetDate} 00:00:00"`,
         `--until="${targetDate} 23:59:59"`,
-        '--pretty=format:%H|||%ai|||%s|||%b[COMMIT_SEP]',
-      ]);
+        '--pretty=format:%H|||%ai|||%an|||%ae|||%s|||%b[COMMIT_SEP]',
+      ];
+
+      // 添加 --author 参数（优先用 email，次之用 name）
+      if (currentUserEmail) {
+        gitLogArgs.push(`--author=${currentUserEmail}`);
+      } else if (currentUserName) {
+        gitLogArgs.push(`--author=${currentUserName}`);
+      }
+
+      // 从 Git 仓库抓取日志（直接用 --author 过滤）
+      const gitLogResult = await shell.exec('git', gitLogArgs);
 
       if (!gitLogResult.success || !gitLogResult.stdout) {
+        console.log(`[获取提交] 项目 ${projectName} 没有获取到提交记录`);
         return logs;
       }
 
       // 分割提交记录
       const commits = gitLogResult.stdout.split('[COMMIT_SEP]').filter(c => c.trim());
+      console.log(`[获取提交] 项目 ${projectName} 获取到 ${commits.length} 条当前用户的提交记录`);
 
       for (const commit of commits) {
         const parts = commit.split('|||');
-        if (parts.length < 3) continue;
+        if (parts.length < 5) continue;
 
         const hash = parts[0].trim();
         const date = parts[1].trim();
-        const subject = parts[2].trim();
-        const body = parts.length > 3 ? parts[3].trim() : '';
+        const authorName = parts[2].trim();
+        const authorEmail = parts[3].trim();
+        const subject = parts[4].trim();
+        const body = parts.length > 5 ? parts[5].trim() : '';
 
         // 清理 body 内容
         let bodyClean = body.replace(/Signed-off-by:.*/g, '').trim();
@@ -143,6 +185,31 @@ diff_end`;
         if (bodyClean) {
           content = `${subject}(${bodyClean})`;
         }
+
+        // 获取提交所属的分支
+        const branchResult = await shell.exec('git', [
+          '-C', normalizedPath,
+          'branch',
+          '--contains',
+          hash,
+        ]);
+
+        let branches: string[] = [];
+        if (branchResult.success && branchResult.stdout) {
+          branches = branchResult.stdout.split('\n')
+            .map(b => b.trim().replace(/^\* /, ''))
+            .filter(b => b.length > 0);
+        }
+
+        // 输出提交信息到控制台（不含diff）
+        console.log(`
+[提交信息] 项目: ${projectName}
+  Hash: ${hash}
+  时间: ${date}
+  作者: ${authorName} <${authorEmail}>
+  分支: ${branches.join(', ') || '未知'}
+  内容: ${content}
+`);
 
         // 如果内容长度小于 15，获取 diff 信息
         let diff = '[已忽略]';
@@ -159,9 +226,6 @@ diff_end`;
             diff = diffResult.stdout;
           }
         }
-
-        // 获取项目名称
-        const projectName = normalizedPath.split('/').pop() || normalizedPath.split('\\').pop() || '未知项目';
 
         logs.push({
           projectPath: normalizedPath,
@@ -183,6 +247,7 @@ diff_end`;
 
     // 合并并排序
     const allLogs = allLogsArrays.flat();
+    console.log(`[获取提交] 总共获取到 ${allLogs.length} 条提交记录`);
     return allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
