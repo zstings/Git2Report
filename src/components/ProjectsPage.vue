@@ -8,11 +8,12 @@ const STORAGE_KEY = 'git2report_projects';
 interface GitProject {
   localPath: string;
   remoteUrl: string;
+  gitUsername?: string;
   isIgnored?: boolean;
   displayName?: string;
 }
 
-const { config, loadConfig } = useConfig();
+const { loadConfig } = useConfig();
 const loading = ref(false);
 const projects = ref<GitProject[]>([]);
 const searchQuery = ref('');
@@ -45,6 +46,7 @@ function getProjectDisplayName(project: GitProject): string {
   return project.localPath.split(/[\\/]/).pop() || '未知项目';
 }
 
+// 保存项目列表
 async function saveProjects() {
   try {
     await storage.setData(STORAGE_KEY, projects.value);
@@ -53,12 +55,14 @@ async function saveProjects() {
   }
 }
 
+// 加载项目列表
 async function loadProjects() {
   loading.value = true;
   try {
     const savedProjects = await storage.getData(STORAGE_KEY);
     if (savedProjects && Array.isArray(savedProjects)) {
       projects.value = savedProjects;
+      console.log('加载项目列表:', projects.value);
     }
   } catch (error) {
     console.error('加载项目失败:', error);
@@ -127,14 +131,13 @@ async function handleSelectDirectoriesForAdd() {
   }
 }
 
+// 验证并获取项目信息: 检查项目目录是否存在，获取远程 URL 和本地 git 用户名
 async function validateAndGetProject(localPath: string): Promise<GitProject | null> {
   try {
     const gitDir = await path.join(localPath, '.git');
-    console.log('[验证项目] 检查 .git 目录:', gitDir);
-    
+
     const exists = await fs.exists(gitDir);
-    console.log('[验证项目] .git 目录是否存在:', exists);
-    
+
     if (!exists) {
       return null;
     }
@@ -142,33 +145,40 @@ async function validateAndGetProject(localPath: string): Promise<GitProject | nu
     let remoteUrl = 'none';
     try {
       const result = await shell.exec('git', ['config', '--get', 'remote.origin.url'], { cwd: localPath });
-      console.log('[验证项目] 获取远程 URL 结果:', result);
-      
+
       if (result.success && result.stdout) {
         remoteUrl = result.stdout.trim();
       }
     } catch (e) {
       console.log('[验证项目] 获取远程 URL 失败:', e);
-      // 忽略获取远程URL失败的情况
     }
 
-    const project = {
+    let gitUsername = '';
+    // 先尝试本地配置
+    try {
+      const localResult = await shell.exec('git', ['config', 'user.name'], { cwd: localPath });
+
+      if (localResult.success && localResult.stdout) {
+        gitUsername = localResult.stdout.trim();
+      }
+    } catch (e) {
+      console.log('[验证项目] 获取 git 用户名失败:', e);
+    }
+
+    return {
       localPath,
       remoteUrl,
+      gitUsername,
     };
-    console.log('[验证项目] 返回项目:', project);
-    
-    return project;
   } catch (e) {
     console.error('[验证项目] 异常:', e);
     return null;
   }
 }
 
+// 添加项目
 async function handleAddProjects() {
   const paths = addProjectPathsInput.value.trim().split('\n').filter(p => p.trim());
-  console.log('[添加项目] 要处理的路径:', paths);
-  
   if (paths.length === 0) {
     await dialog.info({
       title: '提示',
@@ -176,46 +186,49 @@ async function handleAddProjects() {
     });
     return;
   }
-
   loading.value = true;
-  let addedCount = 0;
-
+  let addedCount = 0; // 新增项目数量
+  let updatedCount = 0; // 更新项目数量
   try {
-    const existingPaths = new Set(projects.value.map(p => p.localPath));
-    console.log('[添加项目] 已存在的路径:', Array.from(existingPaths));
-    
-    const newProjects: GitProject[] = [];
-
     for (const localPath of paths) {
-      console.log('[添加项目] 检查路径:', localPath);
-      
-      if (existingPaths.has(localPath)) {
-        console.log('[添加项目] 路径已存在，跳过:', localPath);
-        continue;
-      }
-
-      const project = await validateAndGetProject(localPath);
-      console.log('[添加项目] 验证结果:', project);
-      
+      const normalizedPath = localPath.replace(/\\/g, '/');
+      const project = await validateAndGetProject(normalizedPath);
       if (project) {
-        newProjects.push(project);
-        addedCount++;
+        const item = projects.value.find(p => p.localPath === normalizedPath)!;
+        if (item) {
+          item.remoteUrl = project.remoteUrl;
+          item.gitUsername = project.gitUsername;
+          updatedCount++;
+        } else {
+          projects.value.push(project);
+          addedCount++;
+        }
       }
     }
 
-    console.log('[添加项目] 新增项目:', newProjects);
+    console.log('[添加项目] 最终项目列表:', projects.value);
 
-    if (addedCount > 0) {
-      projects.value = [...projects.value, ...newProjects];
+    if (addedCount > 0 || updatedCount > 0) {
       await saveProjects();
     }
 
     showAddModal.value = false;
     addProjectPathsInput.value = '';
 
+    let message = '';
+    if (addedCount > 0 && updatedCount > 0) {
+      message = `成功添加 ${addedCount} 个项目，更新 ${updatedCount} 个项目`;
+    } else if (addedCount > 0) {
+      message = `成功添加 ${addedCount} 个项目`;
+    } else if (updatedCount > 0) {
+      message = `成功更新 ${updatedCount} 个项目`;
+    } else {
+      message = '未添加或更新任何项目';
+    }
+
     await dialog.info({
       title: '完成',
-      message: addedCount > 0 ? `成功添加 ${addedCount} 个项目` : '未添加任何新项目',
+      message,
     });
   } catch (error) {
     console.error('[添加项目] 错误:', error);
@@ -228,37 +241,38 @@ async function handleAddProjects() {
   }
 }
 
+// 关闭添加项目弹窗
 function closeAddModal() {
   showAddModal.value = false;
   addProjectPathsInput.value = '';
 }
 
+// 关闭扫描弹窗
 function closeScanModal() {
   showScanModal.value = false;
   scanPathsInput.value = '';
 }
 
+// 选择扫描起始目录
 async function handleSelectDirectoriesForScan() {
   const result = await dialog.showOpenDialog({
     title: '选择扫描起始目录',
     multiple: true,
     directory: true,
   });
-  
   if (result && result.length > 0) {
     const existingPaths = scanPathsInput.value
       .split('\n')
       .map(p => p.trim())
       .filter(p => p.length > 0);
-    
     const newPaths = result.filter(p => !existingPaths.includes(p));
     scanPathsInput.value = [...existingPaths, ...newPaths].join('\n');
   }
 }
 
+// 开始扫描
 async function handleStartScan() {
   const scanPaths = scanPathsInput.value.trim().split('\n').filter(p => p.trim());
-  
   if (scanPaths.length === 0) {
     await dialog.info({
       title: '提示',
@@ -266,19 +280,20 @@ async function handleStartScan() {
     });
     return;
   }
-  
   closeScanModal();
   await performScan(scanPaths);
 }
 
+// 扫描结束保存更新
 async function performScan(scanPaths: string[]) {
   loading.value = true;
   let addedCount = 0;
+  let updatedCount = 0;
 
   try {
     const foundProjects: string[] = [];
-    
-    const scanPromises = scanPaths.map(scanPath => 
+
+    const scanPromises = scanPaths.map(scanPath =>
       scanFromDirectory(scanPath, foundProjects)
     );
     await Promise.all(scanPromises);
@@ -291,29 +306,41 @@ async function performScan(scanPaths: string[]) {
       return;
     }
 
-    const existingPaths = new Set(projects.value.map(p => p.localPath));
-    const newProjects: GitProject[] = [];
-
     for (const localPath of foundProjects) {
-      if (existingPaths.has(localPath)) {
-        continue;
-      }
-
-      const project = await validateAndGetProject(localPath);
+      const normalizedPath = localPath.replace(/\\/g, '/');
+      const project = await validateAndGetProject(normalizedPath);
       if (project) {
-        newProjects.push(project);
-        addedCount++;
+        const existing = projects.value.find(p => p.localPath === normalizedPath);
+        if (existing) {
+          existing.remoteUrl = project.remoteUrl;
+          existing.gitUsername = project.gitUsername;
+          updatedCount++;
+        } else {
+          projects.value.push(project);
+          addedCount++;
+        }
       }
     }
 
-    if (newProjects.length > 0) {
-      projects.value = [...projects.value, ...newProjects];
+    if (addedCount > 0 || updatedCount > 0) {
       await saveProjects();
+      console.log('[全量扫描] 保存成功');
+    }
+
+    let message = '';
+    if (addedCount > 0 && updatedCount > 0) {
+      message = `扫描完成，新增 ${addedCount} 个项目，更新 ${updatedCount} 个项目`;
+    } else if (addedCount > 0) {
+      message = `扫描完成，新增 ${addedCount} 个项目`;
+    } else if (updatedCount > 0) {
+      message = `扫描完成，更新 ${updatedCount} 个项目`;
+    } else {
+      message = '扫描完成，未发现新项目';
     }
 
     await dialog.info({
       title: '完成',
-      message: `扫描完成，新增 ${newProjects.length} 个项目`,
+      message,
     });
   } catch (error) {
     console.error('[全量扫描] 扫描失败:', error);
@@ -334,7 +361,6 @@ async function scanFromDirectory(startPath: string, foundProjects: string[]): Pr
       absolute: true,
       dot: true,
     });
-    
     for (const gitDir of gitDirs) {
       const projectPath = gitDir.replace(/[\\/]?\.git$/, '');
       if (projectPath && !foundProjects.includes(projectPath)) {
@@ -392,6 +418,9 @@ onMounted(async () => {
           <div class="project-path">{{ project.localPath }}</div>
           <div v-if="project.remoteUrl !== 'none'" class="project-remote">
             {{ project.remoteUrl }}
+          </div>
+          <div v-if="project.gitUsername" class="project-git-username">
+            用户名: {{ project.gitUsername }}
           </div>
         </div>
         <div class="project-actions">
@@ -735,6 +764,14 @@ onMounted(async () => {
   font-family: monospace;
   word-break: break-all;
   line-height: 1.4;
+}
+
+.project-git-username {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: monospace;
+  line-height: 1.4;
+  margin-top: 2px;
 }
 
 .project-actions {
