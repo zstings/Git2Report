@@ -4,7 +4,7 @@ import { useAI } from '../composables/useAI';
 import { useConfig } from '../composables/useConfig';
 import { useReport } from '../composables/useReport';
 import { useProjects } from '../composables/useProjects';
-import { dialog } from 'vokex.app';
+import { dialog, storage } from 'vokex.app';
 
 const { config: aiConfig, loadConfig: loadAIConfig, saveConfig: saveAIConfig } = useAI();
 const { config: appConfig, loadConfig: loadAppConfig } = useConfig();
@@ -30,23 +30,25 @@ function truncate(str: string, maxLength: number = 50): string {
   return str.substring(0, maxLength) + '...';
 }
 
+// 加载 Git 日志
 async function handleLoadGitLogs() {
   report.loading.value = true;
   try {
     // 从项目列表获取活跃项目的路径
-    const activeProjectPaths = projects.value
-      .filter(p => !p.isIgnored)
-      .map(p => p.localPath);
-
-    if (activeProjectPaths.length === 0) {
+    const STORAGE_KEY = 'git2report_projects';
+    const savedProjects = await storage.getData(STORAGE_KEY);
+    if (!savedProjects || !Array.isArray(savedProjects)) {
       console.log('[加载日志] 项目列表为空');
       return;
     }
-
-    console.log(`[加载日志] 从 ${activeProjectPaths.length} 个项目抓取日志`);
-
+    const activeProject = savedProjects.filter(p => !p.isIgnored);
+    console.log('加载项目列表:', activeProject);
+    if (activeProject.length === 0) {
+      console.log('[加载日志] 项目列表为空');
+      return;
+    }
     // 直接从 Git 仓库抓取日志
-    await report.loadGitLogs(activeProjectPaths, report.selectedDate.value);
+    await report.loadGitLogs(activeProject, report.selectedDate.value);
 
     // 检查是否有已存档的报告
     if (report.hasArchivedReport(report.selectedDate.value)) {
@@ -271,7 +273,7 @@ watch(report.selectedDate, async () => {
 function updateProjectSettings() {
   const ignoredPaths = projects.value.filter(p => p.isIgnored).map(p => p.localPath);
   report.setIgnoredProjects(ignoredPaths);
-  
+
   const displayNames = new Map<string, string>();
   projects.value.forEach(p => {
     if (p.displayName) {
@@ -291,14 +293,6 @@ onMounted(async () => {
     await handleLoadGitLogs();
   }
 });
-
-watch(
-  () => projects.value,
-  () => {
-    updateProjectSettings();
-  },
-  { deep: true },
-);
 </script>
 
 <template>

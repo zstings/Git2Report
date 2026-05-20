@@ -21,9 +21,7 @@ export function useReport() {
   const dailyArchive = ref<Record<string, string>>({});
 
   const filteredGitLogs = computed(() => {
-    return gitLogs.value
-      .filter(log => !ignoredProjectPaths.value.has(log.projectPath))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return gitLogs.value.filter(log => !ignoredProjectPaths.value.has(log.projectPath)).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   });
 
   const gitLogsText = computed(() => {
@@ -86,11 +84,11 @@ diff_end`;
 
   /**
    * 从项目列表实时抓取 Git 提交记录
-   * 
+   *
    * @param projectPaths - 项目路径列表
    * @param targetDate - 目标日期（格式：YYYY-MM-DD）
    * @returns GitCommitLog[] 格式的日志数组
-   * 
+   *
    * 功能说明：
    * 1. 直接从 Git 仓库抓取，不读写文件
    * 2. 使用 Promise.all 并行从所有项目抓取
@@ -98,45 +96,26 @@ diff_end`;
    * 4. 抓取所有分支（--all）
    * 5. 时间范围精确到秒
    */
-  async function fetchGitLogsFromProjects(projectPaths: string[], targetDate: string): Promise<import('../services/aiService').GitCommitLog[]> {
-    const { shell, path: pathUtil } = await import('vokex.app');
-
-    console.log(`[获取提交] 开始从 ${projectPaths.length} 个项目获取 ${targetDate} 的提交记录`);
+  async function fetchGitLogsFromProjects(project: any[], targetDate: string): Promise<import('../services/aiService').GitCommitLog[]> {
+    const { shell } = await import('vokex.app');
 
     // 定义单个项目抓取函数
-    const fetchProjectLogs = async (projectPath: string): Promise<import('../services/aiService').GitCommitLog[]> => {
-      const normalizedPath = projectPath.replace(/\\/g, '/');
+    const fetchProjectLogs = async (item: any): Promise<import('../services/aiService').GitCommitLog[]> => {
+      const normalizedPath = item.localPath.replace(/\\/g, '/');
       const projectName = normalizedPath.split('/').pop() || normalizedPath.split('\\').pop() || '未知项目';
       const logs: import('../services/aiService').GitCommitLog[] = [];
 
-      console.log(`[获取提交] 项目: ${projectName} (${normalizedPath})`);
+      const currentUserName = item.gitUsername;
 
-      // 获取当前项目的 git user 配置
-      const gitUserResult = await shell.exec('git', [
-        '-C', normalizedPath,
-        'config',
-        'user.name',
-      ]);
-
-      const gitEmailResult = await shell.exec('git', [
-        '-C', normalizedPath,
-        'config',
-        'user.email',
-      ]);
-
-      const currentUserName = gitUserResult.success ? gitUserResult.stdout.trim() : '';
-      const currentUserEmail = gitEmailResult.success ? gitEmailResult.stdout.trim() : '';
-
-      console.log(`[获取提交] 当前 Git 用户: ${currentUserName} <${currentUserEmail}>`);
-
-      if (!currentUserName && !currentUserEmail) {
+      if (!currentUserName) {
         console.log(`[获取提交] 无法获取当前项目的 Git 用户信息，跳过该项目`);
         return logs;
       }
 
       // 构建 git log 参数
       const gitLogArgs = [
-        '-C', normalizedPath,
+        '-C',
+        normalizedPath,
         'log',
         '--all',
         '--no-merges',
@@ -146,10 +125,8 @@ diff_end`;
         '--pretty=format:%H|||%ai|||%an|||%ae|||%s|||%b[COMMIT_SEP]',
       ];
 
-      // 添加 --author 参数（优先用 email，次之用 name）
-      if (currentUserEmail) {
-        gitLogArgs.push(`--author=${currentUserEmail}`);
-      } else if (currentUserName) {
+      // 添加 --author 参数（优先用 name）
+      if (currentUserName) {
         gitLogArgs.push(`--author=${currentUserName}`);
       }
 
@@ -163,16 +140,13 @@ diff_end`;
 
       // 分割提交记录
       const commits = gitLogResult.stdout.split('[COMMIT_SEP]').filter(c => c.trim());
-      console.log(`[获取提交] 项目 ${projectName} 获取到 ${commits.length} 条当前用户的提交记录`);
 
       for (const commit of commits) {
-        const parts = commit.split('|||');
+        const parts: any[] = commit.split('|||');
         if (parts.length < 5) continue;
 
         const hash = parts[0].trim();
         const date = parts[1].trim();
-        const authorName = parts[2].trim();
-        const authorEmail = parts[3].trim();
         const subject = parts[4].trim();
         const body = parts.length > 5 ? parts[5].trim() : '';
 
@@ -186,42 +160,10 @@ diff_end`;
           content = `${subject}(${bodyClean})`;
         }
 
-        // 获取提交所属的分支
-        const branchResult = await shell.exec('git', [
-          '-C', normalizedPath,
-          'branch',
-          '--contains',
-          hash,
-        ]);
-
-        let branches: string[] = [];
-        if (branchResult.success && branchResult.stdout) {
-          branches = branchResult.stdout.split('\n')
-            .map(b => b.trim().replace(/^\* /, ''))
-            .filter(b => b.length > 0);
-        }
-
-        // 输出提交信息到控制台（不含diff）
-        console.log(`
-[提交信息] 项目: ${projectName}
-  Hash: ${hash}
-  时间: ${date}
-  作者: ${authorName} <${authorEmail}>
-  分支: ${branches.join(', ') || '未知'}
-  内容: ${content}
-`);
-
         // 如果内容长度小于 15，获取 diff 信息
         let diff = '[已忽略]';
         if (content.length < 15) {
-          const diffResult = await shell.exec('git', [
-            '-C', normalizedPath,
-            'show',
-            '--no-color',
-            '--pretty=',
-            '--patch-with-stat',
-            hash,
-          ]);
+          const diffResult = await shell.exec('git', ['-C', normalizedPath, 'show', '--no-color', '--pretty=', '--patch-with-stat', hash]);
           if (diffResult.success) {
             diff = diffResult.stdout;
           }
@@ -236,14 +178,12 @@ diff_end`;
           diff: diff.trim(),
         });
       }
-
+      console.log(logs, 'logs');
       return logs;
     };
 
     // 并行抓取所有项目
-    const allLogsArrays = await Promise.all(
-      projectPaths.map(projectPath => fetchProjectLogs(projectPath))
-    );
+    const allLogsArrays = await Promise.all(project.map(n => fetchProjectLogs(n)));
 
     // 合并并排序
     const allLogs = allLogsArrays.flat();
@@ -251,10 +191,10 @@ diff_end`;
     return allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
-  async function loadGitLogs(projectPaths: string[], date: string) {
+  async function loadGitLogs(project: any[], date: string) {
     loading.value = true;
     try {
-      gitLogs.value = await fetchGitLogsFromProjects(projectPaths, date);
+      gitLogs.value = await fetchGitLogsFromProjects(project, date);
     } catch (error) {
       console.error('加载 Git 日志失败:', error);
       gitLogs.value = [];
