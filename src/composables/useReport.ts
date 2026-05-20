@@ -84,24 +84,117 @@ diff_end`;
     projectDisplayNames.value = names;
   }
 
-  async function loadGitLogs(reportPath: string, date: string) {
+  /**
+   * 从项目列表实时抓取 Git 提交记录
+   * 
+   * @param projectPaths - 项目路径列表
+   * @param targetDate - 目标日期（格式：YYYY-MM-DD）
+   * @returns GitCommitLog[] 格式的日志数组
+   * 
+   * 功能说明：
+   * 1. 直接从 Git 仓库抓取，不读写文件
+   * 2. 使用 Promise.all 并行从所有项目抓取
+   * 3. 跳过合并提交（--no-merges）
+   * 4. 抓取所有分支（--all）
+   * 5. 时间范围精确到秒
+   */
+  async function fetchGitLogsFromProjects(projectPaths: string[], targetDate: string): Promise<import('../services/aiService').GitCommitLog[]> {
+    const { shell, path: pathUtil } = await import('vokex.app');
+
+    // 定义单个项目抓取函数
+    const fetchProjectLogs = async (projectPath: string): Promise<import('../services/aiService').GitCommitLog[]> => {
+      const normalizedPath = projectPath.replace(/\\/g, '/');
+      const logs: import('../services/aiService').GitCommitLog[] = [];
+
+      // 从 Git 仓库抓取日志
+      const gitLogResult = await shell.exec('git', [
+        '-C', normalizedPath,
+        'log',
+        '--all',
+        '--no-merges',
+        '--reverse',
+        `--since="${targetDate} 00:00:00"`,
+        `--until="${targetDate} 23:59:59"`,
+        '--pretty=format:%H|||%ai|||%s|||%b[COMMIT_SEP]',
+      ]);
+
+      if (!gitLogResult.success || !gitLogResult.stdout) {
+        return logs;
+      }
+
+      // 分割提交记录
+      const commits = gitLogResult.stdout.split('[COMMIT_SEP]').filter(c => c.trim());
+
+      for (const commit of commits) {
+        const parts = commit.split('|||');
+        if (parts.length < 3) continue;
+
+        const hash = parts[0].trim();
+        const date = parts[1].trim();
+        const subject = parts[2].trim();
+        const body = parts.length > 3 ? parts[3].trim() : '';
+
+        // 清理 body 内容
+        let bodyClean = body.replace(/Signed-off-by:.*/g, '').trim();
+        bodyClean = bodyClean.replace(/[\n\r]+/g, ' ').trim();
+
+        // 拼接内容
+        let content = subject;
+        if (bodyClean) {
+          content = `${subject}(${bodyClean})`;
+        }
+
+        // 如果内容长度小于 15，获取 diff 信息
+        let diff = '[已忽略]';
+        if (content.length < 15) {
+          const diffResult = await shell.exec('git', [
+            '-C', normalizedPath,
+            'show',
+            '--no-color',
+            '--pretty=',
+            '--patch-with-stat',
+            hash,
+          ]);
+          if (diffResult.success) {
+            diff = diffResult.stdout;
+          }
+        }
+
+        // 获取项目名称
+        const projectName = normalizedPath.split('/').pop() || normalizedPath.split('\\').pop() || '未知项目';
+
+        logs.push({
+          projectPath: normalizedPath,
+          projectName,
+          hash,
+          date,
+          content,
+          diff: diff.trim(),
+        });
+      }
+
+      return logs;
+    };
+
+    // 并行抓取所有项目
+    const allLogsArrays = await Promise.all(
+      projectPaths.map(projectPath => fetchProjectLogs(projectPath))
+    );
+
+    // 合并并排序
+    const allLogs = allLogsArrays.flat();
+    return allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
+  async function loadGitLogs(projectPaths: string[], date: string) {
     loading.value = true;
     try {
-      gitLogs.value = await aiService.readGitCommitLogs(reportPath, date);
+      gitLogs.value = await fetchGitLogsFromProjects(projectPaths, date);
     } catch (error) {
       console.error('加载 Git 日志失败:', error);
       gitLogs.value = [];
     } finally {
       loading.value = false;
-    }
-  }
-
-  async function cleanInvalidCommits(reportPath: string, date: string): Promise<number> {
-    try {
-      return await aiService.verifyAndCleanCommitLogs(reportPath, date);
-    } catch (error) {
-      console.error('清理无效提交失败:', error);
-      return 0;
     }
   }
 
@@ -219,113 +312,6 @@ diff_end`;
     generatedReport.value = report;
   }
 
-  async function fillCommitsFromProjects(reportPath: string, projectPaths: string[], targetDate: string): Promise<number> {
-    const { fs, shell, path } = await import('vokex.app');
-    
-    const originalDir = await path.join(reportPath, 'original');
-    await fs.mkdir(originalDir, { recursive: true });
-    
-    const logFilePath = await path.join(originalDir, `${targetDate}-git_commit_history.txt`);
-    
-    let existingContent = '';
-    if (await fs.exists(logFilePath)) {
-      existingContent = await fs.readFile(logFilePath, { encoding: 'utf8' });
-    }
-
-    const existingHashes = new Set<string>();
-    const hashRegex = /----------([a-f0-9]{40})-o----------/g;
-    let match;
-    while ((match = hashRegex.exec(existingContent)) !== null) {
-      existingHashes.add(match[1]);
-    }
-
-    let addedCount = 0;
-    const newEntries: string[] = [];
-
-    for (const projectPath of projectPaths) {
-      const normalizedPath = projectPath.replace(/\\/g, '/');
-      
-      const result = await shell.exec('git', [
-        '-C', normalizedPath,
-        'log',
-        '--all',
-        '--no-merges',
-        '--reverse',
-        `--since="${targetDate} 00:00"`,
-        `--until="${targetDate} 23:59"`,
-        '--pretty=format:%H|||%ai|||%s|||%b[COMMIT_SEP]',
-      ]);
-
-      if (!result.success || !result.stdout) {
-        continue;
-      }
-
-      const commits = result.stdout.split('[COMMIT_SEP]').filter(c => c.trim());
-      
-      for (const commit of commits) {
-        const parts = commit.split('|||');
-        if (parts.length < 3) continue;
-        
-        const hash = parts[0].trim();
-        if (existingHashes.has(hash)) {
-          continue;
-        }
-        
-        const date = parts[1].trim();
-        const subject = parts[2].trim();
-        const body = parts.length > 3 ? parts[3].trim() : '';
-
-        let bodyClean = body.replace(/Signed-off-by:.*/g, '').trim();
-        bodyClean = bodyClean.replace(/[\n\r]+/g, ' ').trim();
-
-        let content = subject;
-        if (bodyClean) {
-          content = `${subject}(${bodyClean})`;
-        }
-
-        let diffInfo = '[已忽略]';
-        if (content.length < 15) {
-          const diffResult = await shell.exec('git', [
-            '-C', normalizedPath,
-            'show',
-            '--no-color',
-            '--pretty=',
-            '--patch-with-stat',
-            hash,
-          ]);
-          if (diffResult.success) {
-            diffInfo = diffResult.stdout;
-          }
-        }
-
-        existingHashes.add(hash);
-        addedCount++;
-
-        let entry = `----------${hash}-o----------\n`;
-        entry += `项目：${normalizedPath}\n`;
-        entry += `hash：${hash}\n`;
-        entry += `时间：${date}\n`;
-        entry += `内容：${content}\n`;
-        entry += `diff_start\n`;
-        entry += `${diffInfo}\n`;
-        entry += `diff_end\n`;
-        entry += `----------${hash}-e----------\n`;
-        
-        newEntries.push(entry);
-      }
-    }
-
-    if (addedCount > 0) {
-      if (existingContent && !existingContent.endsWith('\n')) {
-        existingContent += '\n';
-      }
-      existingContent += newEntries.join('\n');
-      await fs.writeFile(logFilePath, existingContent);
-    }
-
-    return addedCount;
-  }
-
   return {
     loading,
     aiLoading,
@@ -341,7 +327,6 @@ diff_end`;
     gitLogsText,
     loadGitLogs,
     loadDailyArchive,
-    cleanInvalidCommits,
     generateDailyReport,
     generateCycleReport,
     saveDailyReport,
@@ -354,6 +339,6 @@ diff_end`;
     setIgnoredProjects,
     setProjectDisplayNames,
     formatDate,
-    fillCommitsFromProjects,
+    fetchGitLogsFromProjects,
   };
 }

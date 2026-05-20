@@ -12,11 +12,9 @@ const { projects, loadProjects } = useProjects();
 const report = useReport();
 
 const showAIConfig = ref(false);
-const showFillModal = ref(false);
 const isGenerating = ref(false);
 const isSaving = ref(false);
 const viewMode = ref<'preview' | 'edit'>('preview');
-const projectPathsInput = ref('');
 
 function formatTime(dateStr: string): string {
   try {
@@ -35,94 +33,27 @@ function truncate(str: string, maxLength: number = 50): string {
 async function handleLoadGitLogs() {
   report.loading.value = true;
   try {
-    if (!appConfig.value.reportPath) {
+    // 从项目列表获取活跃项目的路径
+    const activeProjectPaths = projects.value
+      .filter(p => !p.isIgnored)
+      .map(p => p.localPath);
+
+    if (activeProjectPaths.length === 0) {
+      console.log('[加载日志] 项目列表为空');
       return;
     }
 
-    await report.loadGitLogs(appConfig.value.reportPath, report.selectedDate.value);
+    console.log(`[加载日志] 从 ${activeProjectPaths.length} 个项目抓取日志`);
 
+    // 直接从 Git 仓库抓取日志
+    await report.loadGitLogs(activeProjectPaths, report.selectedDate.value);
+
+    // 检查是否有已存档的报告
     if (report.hasArchivedReport(report.selectedDate.value)) {
       report.generatedReport.value = report.loadArchivedReport(report.selectedDate.value);
     }
-
-    // 只在今天才清理无效提交记录
-    const today = report.formatDate(new Date());
-    if (report.selectedDate.value === today) {
-      const removedCount = await report.cleanInvalidCommits(appConfig.value.reportPath, report.selectedDate.value);
-      if (removedCount > 0) {
-        console.log(`清理了 ${removedCount} 条无效记录，重新加载...`);
-        await report.loadGitLogs(appConfig.value.reportPath, report.selectedDate.value);
-      }
-    } else {
-      console.log(`[跳过清理] 非今天日期: ${report.selectedDate.value}`);
-    }
   } catch (error) {
     console.error('加载 Git 日志失败:', error);
-  } finally {
-    report.loading.value = false;
-  }
-}
-
-async function handleSelectDirectories() {
-  const result = await dialog.showOpenDialog({
-    title: '选择 Git 项目目录',
-    multiple: true,
-    directory: true,
-    defaultPath: '',
-  });
-
-  console.log('[选择目录] 返回结果:', result, '类型:', Array.isArray(result));
-
-  if (result && result.length > 0) {
-    const existingPaths = projectPathsInput.value.trim().split('\n').filter(p => p.trim());
-    const newPaths = [...new Set([...existingPaths, ...result])];
-    projectPathsInput.value = newPaths.join('\n');
-    console.log('[选择目录] 已选择:', newPaths);
-  }
-}
-
-async function handleFillCommits() {
-  if (!appConfig.value.reportPath) {
-    await dialog.info({
-      title: '提示',
-      message: '请先在初始化页面设置报告存放目录',
-    });
-    return;
-  }
-
-  const paths = projectPathsInput.value.trim().split('\n').filter(p => p.trim());
-  if (paths.length === 0) {
-    await dialog.info({
-      title: '提示',
-      message: '请输入或选择项目路径',
-    });
-    return;
-  }
-
-  showFillModal.value = false;
-  report.loading.value = true;
-
-  try {
-    const addedCount = await report.fillCommitsFromProjects(appConfig.value.reportPath, paths, report.selectedDate.value);
-
-    if (addedCount > 0) {
-      await dialog.info({
-        title: '完成',
-        message: `补全完成，共添加 ${addedCount} 条提交记录`,
-      });
-    } else {
-      await dialog.info({
-        title: '完成',
-        message: '未发现新的提交记录',
-      });
-    }
-
-    await handleLoadGitLogs();
-  } catch (error) {
-    await dialog.error({
-      title: '补全失败',
-      message: String(error),
-    });
   } finally {
     report.loading.value = false;
   }
@@ -379,7 +310,6 @@ watch(
             <button class="btn-icon" @click="changeDate(-1)" title="前一天">‹</button>
             <input type="date" class="date-input" v-model="report.selectedDate.value" />
             <button class="btn-icon" @click="changeDate(1)" title="后一天">›</button>
-            <button class="btn-fill" @click="showFillModal = true" title="手动补全提交记录">手动补全提交记录</button>
           </div>
         </div>
 
@@ -487,35 +417,6 @@ watch(
       </div>
     </div>
 
-    <div v-if="showFillModal" class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>补全提交记录</h3>
-          <button class="close-btn" @click="showFillModal = false">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>项目路径</label>
-            <div class="path-input-container">
-              <textarea
-                v-model="projectPathsInput"
-                class="path-textarea"
-                placeholder="请输入项目路径，每行一个&#10;例如：&#10;E:/projects/my-project&#10;D:/workspace/another-project"
-              />
-            </div>
-            <button class="btn-select-dir" @click="handleSelectDirectories">选择目录</button>
-          </div>
-          <div class="form-group">
-            <label>目标日期</label>
-            <input type="date" v-model="report.selectedDate.value" class="date-input" />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-cancel" @click="showFillModal = false">取消</button>
-          <button class="btn-save" @click="handleFillCommits">确定</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
