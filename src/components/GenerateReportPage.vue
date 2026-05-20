@@ -140,15 +140,7 @@ async function handleSaveReport() {
   if (!appConfig.value.reportPath) {
     await dialog.info({
       title: '提示',
-      message: '请先在初始化页面设置报告存放目录',
-    });
-    return;
-  }
-
-  if (report.selectedReportType.value !== 'daily') {
-    await dialog.info({
-      title: '提示',
-      message: '仅日报可以存档',
+      message: '请先在系统设置页面设置报告存放目录',
     });
     return;
   }
@@ -179,10 +171,17 @@ async function handleSaveAIConfig() {
   });
 }
 
+function formatDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function changeDate(days: number) {
   const current = new Date(report.selectedDate.value);
   current.setDate(current.getDate() + days);
-  report.setDate(report.formatDate(current));
+  report.setDate(formatDate(current));
 }
 
 function renderMarkdown(text: string | undefined): string {
@@ -330,9 +329,9 @@ onMounted(async () => {
       <div class="report-panel">
         <div class="panel-header">
           <div class="report-type-tabs">
-            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'daily' }" @click="report.setReportType('daily')">日报</button>
-            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'weekly' }" @click="handleReportTypeClick('weekly')">周报</button>
-            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'monthly' }" @click="handleReportTypeClick('monthly')">月报</button>
+            <button class="tab-btn active" @click="report.setReportType('daily')">日报</button>
+            <button class="tab-btn" @click="handleReportTypeClick('weekly')">周报</button>
+            <button class="tab-btn" @click="handleReportTypeClick('monthly')">月报</button>
           </div>
           <button class="btn-icon" @click="showAIConfig = true" title="AI 配置">⚙️</button>
         </div>
