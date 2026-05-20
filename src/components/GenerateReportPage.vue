@@ -30,6 +30,13 @@ function truncate(str: string, maxLength: number = 50): string {
   return str.substring(0, maxLength) + '...';
 }
 
+function handleReportTypeClick(type: string) {
+  dialog.info({
+    title: '提示',
+    message: type + '报告开发中',
+  });
+}
+
 // 加载 Git 日志
 async function handleLoadGitLogs() {
   report.loading.value = true;
@@ -72,7 +79,7 @@ async function handleGenerateReport() {
   }
 
   // 检查是否有 Git 记录
-  if (report.selectedReportType.value === 'daily' && report.filteredGitLogs.value.length === 0 && !report.userNotes.value.trim()) {
+  if (report.filteredGitLogs.value.length === 0 && !report.userNotes.value.trim()) {
     await dialog.info({
       title: '提示',
       message: '当日没有 Git 提交记录',
@@ -83,16 +90,9 @@ async function handleGenerateReport() {
   isGenerating.value = true;
   report.generatedReport.value = '';
   try {
-    if (report.selectedReportType.value === 'daily') {
-      await report.generateDailyReport(chunk => {
-        report.generatedReport.value += chunk;
-      });
-    } else {
-      const type = report.selectedReportType.value === 'weekly' ? 'week' : 'month';
-      await report.generateCycleReport(appConfig.value.reportPath, type, chunk => {
-        report.generatedReport.value += chunk;
-      });
-    }
+    await report.generateDailyReport(chunk => {
+      report.generatedReport.value += chunk;
+    });
   } catch (error) {
     await dialog.error({
       title: '生成失败',
@@ -100,7 +100,7 @@ async function handleGenerateReport() {
     });
   } finally {
     isGenerating.value = false;
-    if (report.generatedReport.value.trim() && report.selectedReportType.value === 'daily' && appConfig.value.reportPath) {
+    if (report.generatedReport.value.trim() && appConfig.value.reportPath) {
       try {
         await report.saveDailyReport(appConfig.value.reportPath);
       } catch {
@@ -321,7 +321,7 @@ onMounted(async () => {
           <textarea v-model="report.userNotes.value" class="notes-textarea" placeholder="记录非代码工作，如：开会、写文档、线上排查等..." />
         </div>
 
-        <div v-if="report.selectedReportType.value === 'daily' && report.hasArchivedReport(report.selectedDate.value)" class="archive-badge">
+        <div v-if="report.hasArchivedReport(report.selectedDate.value)" class="archive-badge">
           <span class="archive-icon">✓</span>
           <span class="archive-text">该日期已有存档报告</span>
         </div>
@@ -331,8 +331,8 @@ onMounted(async () => {
         <div class="panel-header">
           <div class="report-type-tabs">
             <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'daily' }" @click="report.setReportType('daily')">日报</button>
-            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'weekly' }" @click="report.setReportType('weekly')">周报</button>
-            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'monthly' }" @click="report.setReportType('monthly')">月报</button>
+            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'weekly' }" @click="handleReportTypeClick('weekly')">周报</button>
+            <button class="tab-btn" :class="{ active: report.selectedReportType.value === 'monthly' }" @click="handleReportTypeClick('monthly')">月报</button>
           </div>
           <button class="btn-icon" @click="showAIConfig = true" title="AI 配置">⚙️</button>
         </div>
@@ -357,7 +357,7 @@ onMounted(async () => {
 
         <div v-if="report.generatedReport.value" class="actions-bar">
           <button class="btn-secondary" @click="handleCopyReport">一键复制</button>
-          <button v-if="report.selectedReportType.value === 'daily'" class="btn-primary" @click="handleSaveReport" :disabled="isSaving">
+          <button class="btn-primary" @click="handleSaveReport" :disabled="isSaving">
             {{ isSaving ? '保存中...' : '确认存档' }}
           </button>
         </div>
