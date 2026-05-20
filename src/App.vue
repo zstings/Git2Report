@@ -9,7 +9,7 @@ import { version } from '../package.json';
 
 type Page = 'init' | 'projects' | 'report';
 
-const currentPage = ref<Page>('projects');
+const currentPage = ref<Page>('init');
 const projectsPageKey = ref(0);
 const { isDark, initTheme, toggleDark } = useDarkMode();
 
