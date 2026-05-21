@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import { useConfig } from '../composables/useConfig';
+import { useConfig } from '../../composables/useConfig';
 import { dialog } from 'vokex.app';
 
-const { config, loading: configLoading, loadConfig, saveConfig } = useConfig();
-
-const isLoading = () => configLoading.value;
+const { config, loadConfig, saveConfig } = useConfig();
 
 async function handleSelectPath() {
   const result = await dialog.showOpenDialog({
@@ -36,7 +34,7 @@ onMounted(() => {
           <label class="form-label">报告存放目录</label>
           <div class="path-input-group">
             <input type="text" :value="config.reportPath" readonly placeholder="请选择报告存放目录" class="path-input" />
-            <button class="btn-select" @click="handleSelectPath" :disabled="isLoading()">选择目录</button>
+            <button class="btn-select" @click="handleSelectPath">选择目录</button>
           </div>
           <p class="hint">报告生成后将保存在此目录中</p>
         </div>
@@ -120,18 +118,6 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-
-.btn-select:hover:not(:disabled) {
-  background: var(--bg-sidebar);
-  border-color: var(--text-muted);
-}
-
-.btn-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .hint {
@@ -166,7 +152,6 @@ onMounted(() => {
   position: relative;
   color: var(--text-regular);
   font-size: 13px;
-  line-height: 1.5;
 }
 
 .info-list li::before {
@@ -175,6 +160,5 @@ onMounted(() => {
   left: 0;
   color: var(--color-primary);
   font-weight: 600;
-  font-size: 12px;
 }
 </style>

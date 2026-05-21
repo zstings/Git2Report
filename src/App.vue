@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import ProjectsPage from './components/ProjectsPage.vue';
-import InitHooksPage from './components/InitHooksPage.vue';
+import ProjectsPage from './views/Projects/Index.vue';
+import InitHooksPage from './views/InitHooks/Index.vue';
 import AppUpdate from './components/AppUpdate.vue';
-import GenerateReportPage from './components/GenerateReportPage.vue';
+import GenerateReportPage from './views/GenerateReport/Index.vue';
 import Message from './components/Message.vue';
 import { useDarkMode } from './composables/useDarkMode';
 import { getMessageContainer } from './composables/useMessage';

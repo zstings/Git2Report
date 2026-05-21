@@ -1,20 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import { useAI } from '../composables/useAI';
-import { useConfig } from '../composables/useConfig';
-import { useReport } from '../composables/useReport';
-import { useProjects } from '../composables/useProjects';
-import { useMessage } from '../composables/useMessage';
-import DatePicker from './DatePicker.vue';
-import AIConfigModal from './AIConfigModal.vue';
+import { useAI } from '../../composables/useAI';
+import { useConfig } from '../../composables/useConfig';
+import { useReport } from '../../composables/useReport';
+import { useProjects } from '../../composables/useProjects';
+import { useMessage } from '../../composables/useMessage';
+import DatePicker from '../../components/DatePicker.vue';
+import AIConfigModal from '../../components/AIConfigModal.vue';
 import { storage } from 'vokex.app';
 
 const { success, error, warning, info } = useMessage();
 
-const {
-  activeConfig,
-  loadProfiles,
-} = useAI();
+const { activeConfig, loadProfiles } = useAI();
 const { config: appConfig, loadConfig: loadAppConfig } = useConfig();
 const { loadProjects } = useProjects();
 const report = useReport();
@@ -38,36 +35,17 @@ function truncate(str: string, maxLength: number = 50): string {
   return str.substring(0, maxLength) + '...';
 }
 
-function handleReportTypeClick(type: string) {
-  info(type + '报告开发中');
-}
-
-// 加载 Git 日志
 async function handleLoadGitLogs() {
   report.loading.value = true;
   try {
-    // 从项目列表获取活跃项目的路径
     const STORAGE_KEY = 'git2report_projects';
     const savedProjects = await storage.getData(STORAGE_KEY);
-    if (!savedProjects || !Array.isArray(savedProjects)) {
-      console.log('[加载日志] 项目列表为空');
-      return;
-    }
+    if (!savedProjects || !Array.isArray(savedProjects)) return;
     const activeProject = savedProjects.filter(p => !p.isIgnored);
-    console.log('加载项目列表:', activeProject);
-    if (activeProject.length === 0) {
-      console.log('[加载日志] 项目列表为空');
-      return;
-    }
-    // 直接从 Git 仓库抓取日志
     await report.loadGitLogs(activeProject, report.selectedDate.value);
-
-    // 检查是否有已存档的报告
     if (report.hasArchivedReport(report.selectedDate.value)) {
       report.generatedReport.value = report.loadArchivedReport(report.selectedDate.value);
     }
-  } catch (error) {
-    console.error('加载 Git 日志失败:', error);
   } finally {
     report.loading.value = false;
   }
@@ -92,16 +70,9 @@ async function handleGenerateReport() {
       report.generatedReport.value += chunk;
     });
   } catch (err) {
-    error(`生成失败: ${err instanceof Error ? err.message : String(err)}`);
+    error(`生成失败: ${err}`);
   } finally {
     isGenerating.value = false;
-    if (report.generatedReport.value.trim() && appConfig.value.reportPath) {
-      try {
-        await report.saveDailyReport(appConfig.value.reportPath);
-      } catch {
-        // 自动存档失败时不阻塞，用户仍可手动存档
-      }
-    }
   }
 }
 
@@ -109,7 +80,7 @@ function selectElementText(element: HTMLElement) {
   const range = document.createRange();
   range.selectNodeContents(element);
   const selection = window.getSelection()!;
-  selection.removeAllRanges(); // 清除已有选中
+  selection.removeAllRanges();
   selection.addRange(range);
 }
 
@@ -158,84 +129,11 @@ function changeDate(days: number) {
 }
 
 function renderMarkdown(text: string | undefined): string {
-  if (!text || typeof text !== 'string') return '';
-
-  try {
-    const lines = text.split('\n');
-    let html = '';
-    const listStack: number[] = []; // 记录当前缩进层级
-
-    const closeLists = (toLevel: number) => {
-      while (listStack.length > toLevel) {
-        html += '</ul>';
-        listStack.pop();
-      }
-    };
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine) {
-        closeLists(0);
-        continue;
-      }
-
-      // 1. 处理标题 (##### [项目A])
-      if (/^#{1,6}\s/.test(trimmedLine)) {
-        closeLists(0);
-        const level = trimmedLine.match(/^#+/)?.[0].length || 1;
-        const content = trimmedLine.replace(/^#+\s+/, '');
-        // 转换内部的加粗等格式
-        const formattedContent = formatInline(content);
-        html += `<h${level}>${formattedContent}</h${level}>`;
-        continue;
-      }
-
-      // 2. 处理分割线 (---)
-      if (/^[-*_]{3,}$/.test(trimmedLine)) {
-        closeLists(0);
-        html += '<hr style="border:none;border-top:1px solid #e6e5e6;margin:10px 0;" />';
-        continue;
-      }
-
-      // 3. 处理列表 (支持多级缩进)
-      const listMatch = line.match(/^(\s*)([-*])\s+(.*)$/);
-      if (listMatch) {
-        const indent = listMatch[1]?.length || 0;
-        const content = formatInline(listMatch[3] || '');
-
-        // 简单的层级判定：根据空格长度划分（0-1格为L1，2格以上为L2）
-        const currentLevel = indent === 0 ? 1 : 2;
-
-        if (currentLevel > listStack.length) {
-          html += '<ul style="list-style-type: disc; padding-left: 20px;">';
-          listStack.push(currentLevel);
-        } else if (currentLevel < listStack.length) {
-          closeLists(currentLevel);
-        }
-
-        html += `<li>${content}</li>`;
-      } else {
-        // 普通文本行
-        closeLists(0);
-        html += `<p>${formatInline(line)}</p>`;
-      }
-    }
-
-    closeLists(0);
-    return html;
-  } catch (error) {
-    console.error('渲染失败:', error);
-    return '';
-  }
-}
-
-// 专门处理行内格式，避免全局正则的陷阱
-function formatInline(text: string): string {
+  if (!text) return '';
   return text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // 加粗
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')             // 斜体
-    .replace(/`(.*?)`/g, '<code>$1</code>')           // 代码
-    .replace(/【(.*?)】/g, '<span style="color:#1890ff;font-weight:bold;">【$1】</span>'); // 针对中文括号美化
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code>$1</code>');
 }
 
 watch(report.selectedDate, async () => {
@@ -256,9 +154,9 @@ onMounted(async () => {
       <div class="git-panel">
         <div class="panel-header">
           <div class="date-navigator">
-            <button class="btn-icon" @click="changeDate(-1)" title="前一天">‹</button>
+            <button class="btn-icon" @click="changeDate(-1)">‹</button>
             <DatePicker v-model="report.selectedDate.value" />
-            <button class="btn-icon" @click="changeDate(1)" title="后一天">›</button>
+            <button class="btn-icon" @click="changeDate(1)">›</button>
           </div>
         </div>
 
@@ -282,14 +180,13 @@ onMounted(async () => {
                 <span class="project-badge">{{ log.projectName }}</span>
               </div>
               <div class="log-message">{{ truncate(log.content) }}</div>
-              <div v-if="log.diff" class="log-diff">包含代码变更</div>
             </div>
           </div>
         </div>
 
         <div class="notes-section">
           <label class="notes-label">今日工作补充</label>
-          <textarea v-model="report.userNotes.value" class="notes-textarea" placeholder="记录非代码工作，如：开会、写文档、线上排查等..." />
+          <textarea v-model="report.userNotes.value" class="notes-textarea" placeholder="记录非代码工作..." />
         </div>
 
         <div v-if="report.hasArchivedReport(report.selectedDate.value)" class="archive-badge">
@@ -301,11 +198,11 @@ onMounted(async () => {
       <div class="report-panel">
         <div class="panel-header">
           <div class="report-type-tabs">
-            <button class="tab-btn active" @click="report.setReportType('daily')">日报</button>
-            <button class="tab-btn" @click="handleReportTypeClick('weekly')">周报</button>
-            <button class="tab-btn" @click="handleReportTypeClick('monthly')">月报</button>
+            <button class="tab-btn active">日报</button>
+            <button class="tab-btn" disabled>周报</button>
+            <button class="tab-btn" disabled>月报</button>
           </div>
-          <button class="btn-icon" @click="showAIConfig = true" title="AI 配置">⚙️</button>
+          <button class="btn-icon" @click="showAIConfig = true">⚙️</button>
         </div>
 
         <button class="generate-btn" @click="handleGenerateReport" :disabled="isGenerating">
@@ -319,7 +216,7 @@ onMounted(async () => {
         </div>
 
         <div class="report-content">
-          <textarea v-if="viewMode === 'edit'" v-model="report.generatedReport.value" class="report-editor" placeholder="点击上方按钮生成报告..." />
+          <textarea v-if="viewMode === 'edit'" v-model="report.generatedReport.value" class="report-editor" />
           <div v-else class="report-preview markdown-body">
             <div v-if="report.generatedReport.value" v-html="renderMarkdown(report.generatedReport.value)"></div>
             <div v-else class="placeholder-text">点击上方按钮生成报告...</div>
@@ -336,7 +233,6 @@ onMounted(async () => {
     </div>
 
     <AIConfigModal v-model:visible="showAIConfig" />
-
   </div>
 </template>
 
@@ -351,12 +247,11 @@ onMounted(async () => {
 .workflow-container {
   display: flex;
   height: 100vh;
-  gap: 0;
 }
 
 .git-panel {
   width: 50%;
-  min-width: 320px;
+  min-width: 300px;
   background: var(--bg-panel);
   border-right: 1px solid var(--color-border);
   display: flex;
@@ -378,7 +273,6 @@ onMounted(async () => {
   align-items: center;
   padding: 16px 20px;
   border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
 }
 
 .date-navigator {
@@ -390,43 +284,11 @@ onMounted(async () => {
 .btn-icon {
   width: 28px;
   height: 28px;
-  padding: 0;
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
   font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
-  color: var(--text-muted);
-  transition: all 0.15s;
-}
-
-.btn-icon:hover {
-  background: var(--bg-sidebar);
-  color: var(--text-primary);
-}
-
-.btn-fill {
-  padding: 6px 12px;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-primary);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-fill:hover:not(:disabled) {
-  background: rgba(37, 99, 235, 0.08);
-}
-
-.btn-fill:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .loading-container {
@@ -451,13 +313,10 @@ onMounted(async () => {
 .spinner.small {
   width: 14px;
   height: 14px;
-  border-width: 2px;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 .empty-state {
@@ -469,7 +328,7 @@ onMounted(async () => {
 .git-logs-list {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px 16px 20px;
+  padding: 16px 20px;
 }
 
 .log-item {
@@ -484,13 +343,11 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0;
 }
 
 .log-time-marker .time {
   font-size: 11px;
   color: var(--text-muted);
-  font-weight: 500;
 }
 
 .log-time-marker .dot {
@@ -498,7 +355,6 @@ onMounted(async () => {
   height: 8px;
   border-radius: 50%;
   background: var(--color-primary);
-  margin-top: 2px;
 }
 
 .log-item:not(:last-child)::after {
@@ -513,14 +369,6 @@ onMounted(async () => {
 
 .log-content-wrapper {
   flex: 1;
-  min-width: 0;
-}
-
-.log-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
 }
 
 .project-badge {
@@ -529,32 +377,22 @@ onMounted(async () => {
   color: var(--text-regular);
   border-radius: 3px;
   font-size: 11px;
-  font-weight: 500;
 }
 
 .log-message {
   font-size: 14px;
   color: var(--text-regular);
-  line-height: 1.5;
-}
-
-.log-diff {
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 .notes-section {
-  padding: 16px 20px 12px;
+  padding: 16px 20px;
   border-top: 1px solid var(--color-border);
-  flex-shrink: 0;
 }
 
 .notes-label {
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-regular);
   margin-bottom: 8px;
 }
 
@@ -565,46 +403,20 @@ onMounted(async () => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   font-size: 14px;
-  font-family: inherit;
-  resize: vertical;
   box-sizing: border-box;
-  color: var(--text-regular);
+  resize: vertical;
   background: var(--bg-main);
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.notes-textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
 .archive-badge {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 6px 12px;
-  background: rgba(37, 99, 235, 0.06);
+  background: rgba(37, 99, 235, 0.04);
   border-radius: 20px;
   margin: 0 auto 12px;
-  flex-shrink: 0;
-  width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
-  margin-top: 4px;
-}
-
-.archive-icon {
-  font-size: 14px;
-  color: var(--color-primary);
-}
-
-.archive-text {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
 }
 
 .report-type-tabs {
@@ -621,14 +433,8 @@ onMounted(async () => {
   background: transparent;
   border-radius: calc(var(--radius-md) - 2px);
   font-size: 13px;
-  font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.15s;
-}
-
-.tab-btn:hover {
-  color: var(--text-primary);
 }
 
 .tab-btn.active {
@@ -651,26 +457,12 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.generate-btn:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.generate-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .view-tabs {
   display: flex;
-  gap: 0;
   margin: 0 20px 12px;
   border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
 }
 
 .view-tab {
@@ -682,34 +474,16 @@ onMounted(async () => {
   color: var(--text-muted);
   cursor: pointer;
   margin-right: 20px;
-  transition: all 0.15s;
-  position: relative;
-}
-
-.view-tab:hover {
-  color: var(--text-primary);
 }
 
 .view-tab.active {
   color: var(--color-primary);
 }
 
-.view-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--color-primary);
-}
-
 .report-content {
   flex: 1;
   padding: 0 20px;
-  margin-bottom: 16px;
   min-height: 0;
-  height: 100%;
 }
 
 .report-editor {
@@ -720,17 +494,9 @@ onMounted(async () => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   font-size: 14px;
-  font-family: inherit;
   resize: none;
   box-sizing: border-box;
-  color: var(--text-regular);
   background: var(--bg-main);
-  line-height: 1.6;
-}
-
-.report-editor:focus {
-  outline: none;
-  border-color: var(--color-primary);
 }
 
 .report-preview {
@@ -745,17 +511,12 @@ onMounted(async () => {
   overflow: auto;
 }
 
-.placeholder-text {
-  color: var(--text-muted);
-}
-
 .actions-bar {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
   padding: 16px 20px;
   border-top: 1px solid var(--color-border);
-  flex-shrink: 0;
 }
 
 .btn-secondary {
@@ -765,13 +526,7 @@ onMounted(async () => {
   background: var(--bg-panel);
   color: var(--text-regular);
   font-size: 14px;
-  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-secondary:hover {
-  background: var(--bg-sidebar);
 }
 
 .btn-primary {
@@ -781,185 +536,7 @@ onMounted(async () => {
   background: var(--text-primary);
   color: var(--bg-panel);
   font-size: 14px;
-  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: var(--bg-panel);
-  border-radius: calc(var(--radius-md) + 4px);
-  width: 90%;
-  max-width: 460px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-header h3 {
-  font-size: 15px;
-  color: var(--text-primary);
-  margin: 0;
-  font-weight: 600;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: var(--text-muted);
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
-  transition: color 0.15s;
-}
-
-.close-btn:hover {
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 20px;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group:last-child {
-  margin-bottom: 0;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 500;
-  color: var(--text-regular);
-  font-size: 13px;
-}
-
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  transition: border-color 0.15s;
-  box-sizing: border-box;
-  font-family: inherit;
-  color: var(--text-regular);
-  background: var(--bg-main);
-}
-
-.form-group textarea {
-  min-height: 80px;
-  resize: vertical;
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--color-border);
-}
-
-.btn-cancel {
-  padding: 8px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-regular);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-cancel:hover {
-  background: var(--bg-sidebar);
-}
-
-.btn-save {
-  padding: 8px 16px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: var(--text-primary);
-  color: var(--bg-panel);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-save:hover {
-  opacity: 0.9;
-}
-
-:deep(.markdown-body) h1,
-:deep(.markdown-body) h2,
-:deep(.markdown-body) h3 {
-  margin-bottom: 8px;
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-:deep(.markdown-body) h1 {
-  font-size: 18px;
-}
-:deep(.markdown-body) h2 {
-  font-size: 16px;
-}
-:deep(.markdown-body) h3 {
-  font-size: 15px;
-}
-
-:deep(.markdown-body) p {
-  margin: 8px 0;
-}
-
-:deep(.markdown-body) ul {
-  padding-left: 20px;
-  margin: 8px 0;
-}
-
-:deep(.markdown-body) li {
-  margin: 4px 0;
 }
 
 :deep(.markdown-body) code {
@@ -968,6 +545,5 @@ onMounted(async () => {
   border-radius: 3px;
   font-family: monospace;
   font-size: 13px;
-  color: var(--text-regular);
 }
 </style>
