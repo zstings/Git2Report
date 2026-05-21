@@ -184,8 +184,11 @@ export class AIService {
 
   async loadDailyArchive(reportPath: string): Promise<DailyArchive> {
     try {
+      console.log('load-1', new Date().toLocaleTimeString());
       const archivePath = await path.join(reportPath, 'summary', 'daily_archive.json');
+      console.log('load-2', new Date().toLocaleTimeString());
       const exists = await fs.exists(archivePath);
+      console.log('load-3', new Date().toLocaleTimeString());
       if (!exists) {
         return {};
       }

@@ -4,8 +4,12 @@ import ProjectsPage from './components/ProjectsPage.vue';
 import InitHooksPage from './components/InitHooksPage.vue';
 import AppUpdate from './components/AppUpdate.vue';
 import GenerateReportPage from './components/GenerateReportPage.vue';
+import Message from './components/Message.vue';
 import { useDarkMode } from './composables/useDarkMode';
+import { getMessageContainer } from './composables/useMessage';
 import { version } from '../package.json';
+
+const { messages, closeMessage } = getMessageContainer();
 
 type Page = 'init' | 'projects' | 'report';
 
@@ -64,6 +68,20 @@ onMounted(() => {
       <ProjectsPage v-else-if="currentPage === 'projects'" :key="projectsPageKey" />
       <GenerateReportPage v-else-if="currentPage === 'report'" />
     </main>
+
+    <Teleport to="body">
+      <div class="message-container">
+        <Message
+          v-for="msg in messages"
+          :key="msg.id"
+          :id="msg.id"
+          :type="msg.type"
+          :message="msg.message"
+          :duration="msg.duration"
+          :onClose="closeMessage"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -263,5 +281,17 @@ html.dark *::-webkit-scrollbar-thumb:hover {
   background: var(--bg-main);
   height: 100vh;
   overflow-x: hidden;
+}
+
+.message-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
 }
 </style>

@@ -145,6 +145,7 @@ diff_end`;
       console.error('加载日报存档失败:', error);
       dailyArchive.value = {};
     }
+    // dailyArchive.value = {};
   }
 
   async function generateDailyReport(onChunk?: (chunk: string) => void) {

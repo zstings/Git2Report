@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { version } from '../../package.json';
-import { dialog, http, shell } from 'vokex.app';
+import { http, shell } from 'vokex.app';
+import { useMessage } from '@/composables/useMessage';
+const {  info } = useMessage();
 
 interface Release {
   tag_name: string;
@@ -82,10 +84,7 @@ async function handleManualCheck(isAuto: boolean = false) {
     showUpdateModal.value = true;
   } else {
     if(isAuto) return;
-    await dialog.info({
-      title: '检查更新',
-      message: '当前已是最新版本 v' + version,
-    });
+    info('当前已是最新版本 v' + version);
   }
 }
 

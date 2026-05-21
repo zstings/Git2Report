@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useConfig } from '../composables/useConfig';
+import { useMessage } from '../composables/useMessage';
 import { dialog, fs, path, shell, storage } from 'vokex.app';
+
+const { success, error, warning, info } = useMessage();
 
 const STORAGE_KEY = 'git2report_projects';
 
@@ -189,10 +192,7 @@ async function validateAndGetProject(localPath: string): Promise<GitProject | nu
 async function handleAddProjects() {
   const paths = addProjectPathsInput.value.trim().split('\n').filter(p => p.trim());
   if (paths.length === 0) {
-    await dialog.info({
-      title: '提示',
-      message: '请输入或选择项目路径',
-    });
+    warning('请输入或选择项目路径');
     return;
   }
   loading.value = true;
@@ -235,16 +235,10 @@ async function handleAddProjects() {
       message = '未添加或更新任何项目';
     }
 
-    await dialog.info({
-      title: '完成',
-      message,
-    });
-  } catch (error) {
-    console.error('[添加项目] 错误:', error);
-    await dialog.error({
-      title: '添加失败',
-      message: String(error),
-    });
+    success(message);
+  } catch (err) {
+    console.error('[添加项目] 错误:', err);
+    error(`添加失败: ${err}`);
   } finally {
     loading.value = false;
   }
@@ -283,10 +277,7 @@ async function handleSelectDirectoriesForScan() {
 async function handleStartScan() {
   const scanPaths = scanPathsInput.value.trim().split('\n').filter(p => p.trim());
   if (scanPaths.length === 0) {
-    await dialog.info({
-      title: '提示',
-      message: '请输入或选择至少一个扫描起始目录',
-    });
+    warning('请输入或选择至少一个扫描起始目录');
     return;
   }
   closeScanModal();
@@ -308,10 +299,7 @@ async function performScan(scanPaths: string[]) {
     await Promise.all(scanPromises);
 
     if (foundProjects.length === 0) {
-      await dialog.info({
-        title: '完成',
-        message: '未发现任何 Git 项目',
-      });
+      info('未发现任何 Git 项目');
       return;
     }
 
@@ -347,16 +335,10 @@ async function performScan(scanPaths: string[]) {
       message = '扫描完成，未发现新项目';
     }
 
-    await dialog.info({
-      title: '完成',
-      message,
-    });
-  } catch (error) {
-    console.error('[全量扫描] 扫描失败:', error);
-    await dialog.error({
-      title: '错误',
-      message: `扫描失败: ${error}`,
-    });
+    success(message);
+  } catch (err) {
+    console.error('[全量扫描] 扫描失败:', err);
+    error(`扫描失败: ${err}`);
   } finally {
     loading.value = false;
   }

@@ -4,7 +4,11 @@ import { useAI } from '../composables/useAI';
 import { useConfig } from '../composables/useConfig';
 import { useReport } from '../composables/useReport';
 import { useProjects } from '../composables/useProjects';
-import { dialog, storage } from 'vokex.app';
+import { useMessage } from '../composables/useMessage';
+import DatePicker from './DatePicker.vue';
+import { storage } from 'vokex.app';
+
+const { success, error, warning, info } = useMessage();
 
 const { config: aiConfig, loadConfig: loadAIConfig, saveConfig: saveAIConfig } = useAI();
 const { config: appConfig, loadConfig: loadAppConfig } = useConfig();
@@ -31,10 +35,7 @@ function truncate(str: string, maxLength: number = 50): string {
 }
 
 function handleReportTypeClick(type: string) {
-  dialog.info({
-    title: '提示',
-    message: type + '报告开发中',
-  });
+  info(type + '报告开发中');
 }
 
 // 加载 Git 日志
@@ -70,20 +71,13 @@ async function handleLoadGitLogs() {
 
 async function handleGenerateReport() {
   if (!aiConfig.value.apiKey) {
-    await dialog.info({
-      title: '提示',
-      message: '请先配置 AI 服务',
-    });
+    warning('请先配置 AI 服务');
     showAIConfig.value = true;
     return;
   }
 
-  // 检查是否有 Git 记录
   if (report.filteredGitLogs.value.length === 0 && !report.userNotes.value.trim()) {
-    await dialog.info({
-      title: '提示',
-      message: '当日没有 Git 提交记录',
-    });
+    info('当日没有 Git 提交记录');
     return;
   }
 
@@ -93,11 +87,8 @@ async function handleGenerateReport() {
     await report.generateDailyReport(chunk => {
       report.generatedReport.value += chunk;
     });
-  } catch (error) {
-    await dialog.error({
-      title: '生成失败',
-      message: `请求失败：${error instanceof Error ? error.message : String(error)}\n\n请检查：\n1. 网络连接是否正常\n2. API Key 是否有效\n3. API 服务是否可用`,
-    });
+  } catch (err) {
+    error(`生成失败: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     isGenerating.value = false;
     if (report.generatedReport.value.trim() && appConfig.value.reportPath) {
@@ -129,34 +120,21 @@ async function handleCopyReport() {
   document.execCommand('copy');
   dom.removeChild(docx);
   docx.remove();
-  // await clipboard.writeText(report.generatedReport.value);
-  await dialog.info({
-    title: '成功',
-    message: '报告已复制到剪贴板',
-  });
+  success('报告已复制到剪贴板');
 }
 
 async function handleSaveReport() {
   if (!appConfig.value.reportPath) {
-    await dialog.info({
-      title: '提示',
-      message: '请先在系统设置页面设置报告存放目录',
-    });
+    warning('请先在系统设置页面设置报告存放目录');
     return;
   }
 
   isSaving.value = true;
   try {
     await report.saveDailyReport(appConfig.value.reportPath);
-    await dialog.info({
-      title: '成功',
-      message: '报告已存档',
-    });
-  } catch (error) {
-    await dialog.error({
-      title: '保存失败',
-      message: String(error),
-    });
+    success('报告已存档');
+  } catch (err) {
+    error(`保存失败: ${err}`);
   } finally {
     isSaving.value = false;
   }
@@ -165,10 +143,7 @@ async function handleSaveReport() {
 async function handleSaveAIConfig() {
   await saveAIConfig();
   showAIConfig.value = false;
-  await dialog.info({
-    title: '成功',
-    message: '配置已保存',
-  });
+  success('配置已保存');
 }
 
 function formatDate(date: Date): string {
@@ -271,7 +246,6 @@ watch(report.selectedDate, async () => {
 
 onMounted(async () => {
   await Promise.all([loadAIConfig(), loadAppConfig()]);
-
   await loadProjects();
   await report.loadDailyArchive(appConfig.value.reportPath);
   await handleLoadGitLogs();
@@ -285,7 +259,7 @@ onMounted(async () => {
         <div class="panel-header">
           <div class="date-navigator">
             <button class="btn-icon" @click="changeDate(-1)" title="前一天">‹</button>
-            <input type="date" class="date-input" v-model="report.selectedDate.value" />
+            <DatePicker v-model="report.selectedDate.value" />
             <button class="btn-icon" @click="changeDate(1)" title="后一天">›</button>
           </div>
         </div>
@@ -484,21 +458,6 @@ onMounted(async () => {
 .btn-fill:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.date-input {
-  padding: 6px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  color: var(--text-regular);
-  background: transparent;
-}
-
-.date-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  background: var(--bg-main);
 }
 
 .loading-container {
