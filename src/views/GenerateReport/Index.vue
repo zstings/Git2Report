@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import { useAI } from '../../composables/useAI';
-import { useConfig } from '../../composables/useConfig';
-import { useReport } from '../../composables/useReport';
-import { useProjects } from '../../composables/useProjects';
-import { useMessage } from '../../composables/useMessage';
-import DatePicker from '../../components/DatePicker.vue';
-import AIConfigModal from '../../components/AIConfigModal.vue';
+import { useAI } from '@/composables/useAI';
+import { useConfig } from '@/composables/useConfig';
+import { useReport } from '@/composables/useReport';
+import { useProjects } from '@/composables/useProjects';
+import { useMessage } from '@/composables/useMessage';
+import DatePicker from '@/components/DatePicker.vue';
+import AIConfigModal from '@/views/GenerateReport/components/AIConfigModal.vue';
 import { storage } from 'vokex.app';
 
 const { success, error, warning, info } = useMessage();
@@ -316,7 +316,9 @@ onMounted(async () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-state {
