@@ -15,7 +15,7 @@ function formatDate(date: Date): string {
 
 const selectedDate = ref(formatDate(new Date()));
 
-const gitLogs = ref<GitCommitLog[]>([]);
+const gitLogs = defineModel<GitCommitLog[]>('modelValue', { default: () => [] });
 const userNotes = ref('');
 const generatedReport = ref('');
 const dailyArchive = ref<Record<string, string>>({});

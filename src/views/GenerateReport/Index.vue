@@ -6,6 +6,10 @@ import { useProjects } from '@/composables/useProjects';
 import AIConfigModal from '@/views/GenerateReport/components/AIConfigModal.vue';
 import GitPanel from '@/views/GenerateReport/components/GitPanel.vue';
 import ReportPanel from '@/views/GenerateReport/components/ReportPanel.vue';
+import type { GitCommitLog } from '@/services/aiService';
+
+// 抓取的日志记录
+const gitLogs = ref<GitCommitLog[]>([]);
 
 const { loadProfiles } = useAI();
 const { loadConfig: loadAppConfig } = useConfig();
@@ -22,9 +26,9 @@ onMounted(async () => {
 <template>
   <div class="page report-page">
     <div class="workflow-container">
-      <GitPanel />
+      <GitPanel v-model="gitLogs" />
 
-      <ReportPanel @showAIConfig="showAIConfig = true" />
+      <ReportPanel v-model="gitLogs" @showAIConfig="showAIConfig = true" />
     </div>
 
     <AIConfigModal v-model:visible="showAIConfig" />

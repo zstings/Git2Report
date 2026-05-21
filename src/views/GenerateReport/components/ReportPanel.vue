@@ -12,6 +12,8 @@ const { activeConfig } = useAI();
 const { config: appConfig } = useConfig();
 const aiService = AIService.getInstance();
 
+const gitLogs = defineModel<GitCommitLog[]>('modelValue', { default: () => [] });
+
 const loading = ref(false);
 const isGenerating = ref(false);
 const isSaving = ref(false);
@@ -25,7 +27,6 @@ function formatDate(date: Date): string {
 }
 
 const selectedDate = ref(formatDate(new Date()));
-const gitLogs = ref<GitCommitLog[]>([]);
 const userNotes = ref('');
 const generatedReport = ref('');
 const dailyArchive = ref<Record<string, string>>({});
