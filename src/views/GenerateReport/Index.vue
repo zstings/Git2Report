@@ -40,7 +40,10 @@ async function handleLoadGitLogs() {
   try {
     const STORAGE_KEY = 'git2report_projects';
     const savedProjects = await storage.getData(STORAGE_KEY);
-    if (!savedProjects || !Array.isArray(savedProjects)) return;
+    if (!savedProjects || !Array.isArray(savedProjects)) {
+      warning('请先在系统设置页面配置项目');
+      return;
+    };
     const activeProject = savedProjects.filter(p => !p.isIgnored);
     await report.loadGitLogs(activeProject, report.selectedDate.value);
     if (report.hasArchivedReport(report.selectedDate.value)) {
