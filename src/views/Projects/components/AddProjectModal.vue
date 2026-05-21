@@ -5,6 +5,7 @@ import { mergeAddProjects } from '@/projects';
 import { useMessage } from '@/composables/useMessage';
 import AppDialog from '@/components/AppDialog.vue';
 import AppTextarea from '@/components/AppTextarea.vue';
+import AppButton from '@/components/AppButton.vue';
 
 /**
  * 添加项目弹窗组件
@@ -87,13 +88,13 @@ function closeModal() {
     <div class="form-group">
       <label>项目路径（每行一个）</label>
       <AppTextarea v-model="addProjectPathsInput" placeholder="输入项目路径，每行一个" :rows="6" />
-      <button @click="handleSelectDirectories" class="btn btn-secondary mt-2">选择目录</button>
+      <AppButton type="secondary" @click="handleSelectDirectories" class="mt-2">选择目录</AppButton>
     </div>
     <template #footer>
-      <button @click="closeModal" class="btn btn-secondary">取消</button>
-      <button @click="handleAddProjects" class="btn btn-primary" :disabled="loading">
+      <AppButton type="secondary" @click="closeModal">取消</AppButton>
+      <AppButton type="primary" :loading="loading" @click="handleAddProjects">
         {{ loading ? '添加中...' : '确定' }}
-      </button>
+      </AppButton>
     </template>
   </AppDialog>
 </template>
@@ -109,35 +110,6 @@ function closeModal() {
   font-weight: 500;
   color: var(--text-regular);
   font-size: 13px;
-}
-
-.btn {
-  padding: 8px 16px;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.15s;
-  border: none;
-}
-
-.btn-primary {
-  background: var(--color-primary);
-  color: white;
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--text-regular);
-}
-
-.btn-secondary:hover {
-  background: var(--bg-sidebar);
 }
 
 .mt-2 {
