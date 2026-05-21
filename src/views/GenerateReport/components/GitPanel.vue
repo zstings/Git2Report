@@ -1,10 +1,139 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import DatePicker from '@/components/DatePicker.vue';
-import { useReport } from '@/composables/useReport';
 import { storage } from 'vokex.app';
+import type { GitCommitLog } from '@/services/aiService';
 
-const report = useReport();
+const loading = ref(false);
+
+function formatDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+const selectedDate = ref(formatDate(new Date()));
+
+const gitLogs = ref<GitCommitLog[]>([]);
+const ignoredProjectPaths = ref<Set<string>>(new Set());
+const userNotes = ref('');
+const generatedReport = ref('');
+const dailyArchive = ref<Record<string, string>>({});
+
+const filteredGitLogs = computed(() => {
+  return gitLogs.value.filter(log => !ignoredProjectPaths.value.has(log.projectPath)).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+});
+
+function setDate(date: string) {
+  selectedDate.value = date;
+  generatedReport.value = '';
+}
+
+function hasArchivedReport(date: string): boolean {
+  return !!dailyArchive.value[date];
+}
+
+function loadArchivedReport(date: string): string {
+  return dailyArchive.value[date] || '';
+}
+
+async function fetchGitLogsFromProjects(project: any[], targetDate: string): Promise<GitCommitLog[]> {
+  const { shell } = await import('vokex.app');
+
+  const fetchProjectLogs = async (item: any): Promise<GitCommitLog[]> => {
+    const normalizedPath = item.localPath.replace(/\\/g, '/');
+    const projectName = normalizedPath.split('/').pop() || normalizedPath.split('\\').pop() || '未知项目';
+    const logs: GitCommitLog[] = [];
+
+    const currentUserName = item.gitUsername;
+
+    if (!currentUserName) {
+      console.log(`[获取提交] 无法获取当前项目的 Git 用户信息，跳过该项目`);
+      return logs;
+    }
+
+    const gitLogArgs = [
+      '-C',
+      normalizedPath,
+      'log',
+      '--all',
+      '--no-merges',
+      '--reverse',
+      `--since="${targetDate} 00:00:00"`,
+      `--until="${targetDate} 23:59:59"`,
+      '--pretty=format:%H|||%ai|||%an|||%ae|||%s|||%b[COMMIT_SEP]',
+    ];
+
+    if (currentUserName) {
+      gitLogArgs.push(`--author=${currentUserName}`);
+    }
+
+    const gitLogResult = await shell.exec('git', gitLogArgs);
+
+    if (!gitLogResult.success || !gitLogResult.stdout) {
+      console.log(`[获取提交] 项目 ${projectName} 没有获取到提交记录`);
+      return logs;
+    }
+
+    const commits = gitLogResult.stdout.split('[COMMIT_SEP]').filter(c => c.trim());
+
+    for (const commit of commits) {
+      const parts: any[] = commit.split('|||');
+      if (parts.length < 5) continue;
+
+      const hash = parts[0].trim();
+      const date = parts[1].trim();
+      const subject = parts[4].trim();
+      const body = parts.length > 5 ? parts[5].trim() : '';
+
+      let bodyClean = body.replace(/Signed-off-by:.*/g, '').trim();
+      bodyClean = bodyClean.replace(/[\n\r]+/g, ' ').trim();
+
+      let content = subject;
+      if (bodyClean) {
+        content = `${subject}(${bodyClean})`;
+      }
+
+      let diff = '[已忽略]';
+      if (content.length < 15) {
+        const diffResult = await shell.exec('git', ['-C', normalizedPath, 'show', '--no-color', '--pretty=', '--patch-with-stat', hash]);
+        if (diffResult.success) {
+          diff = diffResult.stdout;
+        }
+      }
+
+      logs.push({
+        projectPath: normalizedPath,
+        projectName,
+        hash,
+        date,
+        content,
+        diff: diff.trim(),
+      });
+    }
+    console.log(logs, 'logs');
+    return logs;
+  };
+
+  const allLogsArrays = await Promise.all(project.map(n => fetchProjectLogs(n)));
+
+  const allLogs = allLogsArrays.flat();
+  console.log(`[获取提交] 总共获取到 ${allLogs.length} 条提交记录`);
+  return allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}
+
+async function loadGitLogs(project: any[], date: string) {
+  loading.value = true;
+  try {
+    gitLogs.value = await fetchGitLogsFromProjects(project, date);
+  } catch (error) {
+    console.error('加载 Git 日志失败:', error);
+    gitLogs.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
 
 function formatTime(dateStr: string): string {
   try {
@@ -21,20 +150,13 @@ function truncate(str: string, maxLength: number = 50): string {
 }
 
 function changeDate(days: number) {
-  const current = new Date(report.selectedDate.value);
+  const current = new Date(selectedDate.value);
   current.setDate(current.getDate() + days);
-  report.setDate(formatDate(current));
-}
-
-function formatDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  setDate(formatDate(current));
 }
 
 async function handleLoadGitLogs() {
-  report.loading.value = true;
+  loading.value = true;
   try {
     const STORAGE_KEY = 'git2report_projects';
     const savedProjects = await storage.getData(STORAGE_KEY);
@@ -42,16 +164,16 @@ async function handleLoadGitLogs() {
       return;
     };
     const activeProject = savedProjects.filter((p: { isIgnored: boolean }) => !p.isIgnored);
-    await report.loadGitLogs(activeProject, report.selectedDate.value);
-    if (report.hasArchivedReport(report.selectedDate.value)) {
-      report.generatedReport.value = report.loadArchivedReport(report.selectedDate.value);
+    await loadGitLogs(activeProject, selectedDate.value);
+    if (hasArchivedReport(selectedDate.value)) {
+      generatedReport.value = loadArchivedReport(selectedDate.value);
     }
   } finally {
-    report.loading.value = false;
+    loading.value = false;
   }
 }
 
-watch(report.selectedDate, async () => {
+watch(selectedDate, async () => {
   await handleLoadGitLogs();
 });
 
@@ -65,22 +187,22 @@ onMounted(async () => {
     <div class="panel-header">
       <div class="date-navigator">
         <button class="btn-icon" @click="changeDate(-1)" title="前一天">‹</button>
-        <DatePicker v-model="report.selectedDate.value" />
+        <DatePicker v-model="selectedDate" />
         <button class="btn-icon" @click="changeDate(1)" title="后一天">›</button>
       </div>
     </div>
 
-    <div v-if="report.loading.value" class="loading-container">
+    <div v-if="loading" class="loading-container">
       <div class="spinner"></div>
       <span>加载中...</span>
     </div>
 
-    <div v-else-if="report.filteredGitLogs.value.length === 0" class="empty-state">
+    <div v-else-if="filteredGitLogs.length === 0" class="empty-state">
       <p>暂无 Git 提交记录</p>
     </div>
 
     <div v-else class="git-logs-list">
-      <div v-for="(log, index) in report.filteredGitLogs.value" :key="index" class="log-item">
+      <div v-for="(log, index) in filteredGitLogs" :key="index" class="log-item">
         <div class="log-time-marker">
           <span class="time">{{ formatTime(log.date) }}</span>
           <span class="dot"></span>
@@ -97,10 +219,10 @@ onMounted(async () => {
 
     <div class="notes-section">
       <label class="notes-label">今日工作补充</label>
-      <textarea v-model="report.userNotes.value" class="notes-textarea" placeholder="记录非代码工作..." />
+      <textarea v-model="userNotes" class="notes-textarea" placeholder="记录非代码工作..." />
     </div>
 
-    <div v-if="report.hasArchivedReport(report.selectedDate.value)" class="archive-badge">
+    <div v-if="hasArchivedReport(selectedDate)" class="archive-badge">
       <span class="archive-icon">✓</span>
       <span class="archive-text">该日期已有存档报告</span>
     </div>
