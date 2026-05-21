@@ -71,15 +71,7 @@ onMounted(() => {
 
     <Teleport to="body">
       <div class="message-container">
-        <Message
-          v-for="msg in messages"
-          :key="msg.id"
-          :id="msg.id"
-          :type="msg.type"
-          :message="msg.message"
-          :duration="msg.duration"
-          :onClose="closeMessage"
-        />
+        <Message v-for="msg in messages" :key="msg.id" :id="msg.id" :type="msg.type" :message="msg.message" :duration="msg.duration" :onClose="closeMessage" />
       </div>
     </Teleport>
   </div>
@@ -293,5 +285,11 @@ html.dark *::-webkit-scrollbar-thumb:hover {
   flex-direction: column;
   align-items: center;
   pointer-events: none;
+}
+.singe-line {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  word-break: break-all;
+  white-space: nowrap;
 }
 </style>

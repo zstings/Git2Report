@@ -1,6 +1,6 @@
 import type { AIConfig } from './services/aiService';
 
-const todaySystemPrompt = (data: AIConfig) => {
+export function todaySystemPrompt(data: AIConfig) {
   return `# Role
 你是一位专业的研发项目管理助手，擅长将零散的开发记录整理成逻辑严密、排版精美的日报。
 # Task
@@ -46,6 +46,8 @@ const todaySystemPrompt = (data: AIConfig) => {
   - **重大修复（Fix）**：修复了一个在登录时会报错的问题，影响了用户的正常使用。
 
 ${data.systemPreference ? `用户偏好：${data.systemPreference}` : ''}`;
-};
+}
 
-export { todaySystemPrompt };
+export function normalizePath(path: string) {
+  return path.replace(/\\/g, '/');
+}

@@ -1,24 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useConfig } from '../../composables/useConfig';
 import { useMessage } from '../../composables/useMessage';
-import { dialog, fs, path, shell, storage } from 'vokex.app';
+import { dialog, fs, path, shell } from 'vokex.app';
+import { loadProjects, saveProjects, projects, type GitProject } from '../../projects';
+import { normalizePath } from '@/utils';
 
 const { success, error, warning, info } = useMessage();
 
-const STORAGE_KEY = 'git2report_projects';
-
-interface GitProject {
-  localPath: string;
-  remoteUrl: string;
-  gitUsername?: string;
-  isIgnored?: boolean;
-  displayName?: string;
-}
-
-const { loadConfig } = useConfig();
 const loading = ref(false);
-const projects = ref<GitProject[]>([]);
 const searchQuery = ref('');
 const showEditModal = ref(false);
 const showAddModal = ref(false);
@@ -42,10 +31,6 @@ const filteredProjects = computed(() => {
   return result;
 });
 
-function normalizePath(path: string) {
-  return path.replace(/\\/g, '/');
-}
-
 function getProjectDisplayName(project: GitProject): string {
   if (project.displayName) {
     return project.displayName;
@@ -53,24 +38,11 @@ function getProjectDisplayName(project: GitProject): string {
   return project.localPath.split(/[\\/]/).pop() || '未知项目';
 }
 
-async function saveProjects() {
-  await storage.setData(STORAGE_KEY, projects.value);
-}
-
-async function loadProjects() {
+async function loadProjectsInit() {
   loading.value = true;
-  try {
-    const savedProjects = await storage.getData(STORAGE_KEY);
-    if (savedProjects && Array.isArray(savedProjects)) {
-      savedProjects.forEach(project => {
-        project.localPath = normalizePath(project.localPath);
-      });
-      projects.value = savedProjects;
-      saveProjects();
-    }
-  } finally {
+  loadProjects(() => {
     loading.value = false;
-  }
+  });
 }
 
 async function toggleProjectIgnore(projectPath: string) {
@@ -120,7 +92,10 @@ async function handleSelectDirectoriesForAdd() {
   }
 
   if (selectedPaths.length > 0) {
-    const existingPaths = addProjectPathsInput.value.trim().split('\n').filter(p => p.trim());
+    const existingPaths = addProjectPathsInput.value
+      .trim()
+      .split('\n')
+      .filter(p => p.trim());
     const newPaths = [...new Set([...existingPaths, ...selectedPaths])];
     addProjectPathsInput.value = newPaths.join('\n');
   }
@@ -155,7 +130,10 @@ async function validateAndGetProject(localPath: string): Promise<GitProject | nu
 }
 
 async function handleAddProjects() {
-  const paths = addProjectPathsInput.value.trim().split('\n').filter(p => p.trim());
+  const paths = addProjectPathsInput.value
+    .trim()
+    .split('\n')
+    .filter(p => p.trim());
   if (paths.length === 0) {
     warning('请输入或选择项目路径');
     return;
@@ -203,7 +181,10 @@ async function handleSelectDirectoriesForScan() {
     directory: true,
   });
   if (Array.isArray(result) && result.length > 0) {
-    const existingPaths = scanPathsInput.value.split('\n').map(p => p.trim()).filter(p => p.length > 0);
+    const existingPaths = scanPathsInput.value
+      .split('\n')
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
     const newPaths = result.filter(p => !existingPaths.includes(p));
     scanPathsInput.value = [...existingPaths, ...newPaths].join('\n');
   }
@@ -252,7 +233,10 @@ async function performScan(scanPaths: string[]) {
 }
 
 async function handleStartScan() {
-  const scanPaths = scanPathsInput.value.trim().split('\n').filter(p => p.trim());
+  const scanPaths = scanPathsInput.value
+    .trim()
+    .split('\n')
+    .filter(p => p.trim());
   if (scanPaths.length === 0) {
     warning('请输入或选择至少一个扫描起始目录');
     return;
@@ -262,8 +246,7 @@ async function handleStartScan() {
 }
 
 onMounted(async () => {
-  await loadConfig();
-  await loadProjects();
+  await loadProjectsInit();
 });
 </script>
 
@@ -303,8 +286,8 @@ onMounted(async () => {
             {{ getProjectDisplayName(project) }}
             <span v-if="project.isIgnored" class="ignore-tag">已忽略</span>
           </div>
-          <div class="project-path">{{ project.localPath }}</div>
-          <div v-if="project.remoteUrl !== 'none'" class="project-remote">{{ project.remoteUrl }}</div>
+          <div class="project-path singe-line" :title="project.localPath">{{ project.localPath }}</div>
+          <div v-if="project.remoteUrl !== 'none'" class="project-remote singe-line" :title="project.remoteUrl">{{ project.remoteUrl }}</div>
         </div>
         <div class="project-actions">
           <button class="btn-edit" @click="openEditModal(project)">修改名称</button>
@@ -493,7 +476,9 @@ onMounted(async () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .projects-grid {
