@@ -1,21 +1,18 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { dialog, fs, path, shell } from 'vokex.app';
-import { normalizePath } from '@/utils';
-import type { GitProject } from '@/projects';
+import { dialog, fs } from 'vokex.app';
+import { mergeAddProjects } from '@/projects';
 import { useMessage } from '@/composables/useMessage';
 
-const props = defineProps<{
-  projects: GitProject[];
+defineProps<{
   visible: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
-  (e: 'update:projects', value: GitProject[]): void;
 }>();
 
-const { success, error, warning, info } = useMessage();
+const { warning, info } = useMessage();
 const scanPathsInput = ref('');
 const loading = ref(false);
 
@@ -39,99 +36,54 @@ async function handleSelectDirectories() {
 }
 
 /**
- * 验证并获取项目信息（检查是否为 Git 仓库，获取远程 URL 和用户名）
- * @param localPath 本地路径
- * @returns 项目信息或 null
- */
-async function validateAndGetProject(localPath: string): Promise<GitProject | null> {
-  try {
-    const gitDir = await path.join(localPath, '.git');
-    const exists = await fs.exists(gitDir);
-    if (!exists) return null;
-
-    let remoteUrl = 'none';
-    try {
-      const result = await shell.exec('git', ['config', '--get', 'remote.origin.url'], { cwd: localPath });
-      if (result.success && result.stdout) {
-        remoteUrl = result.stdout.trim();
-      }
-    } catch {}
-
-    let gitUsername = '';
-    try {
-      const localResult = await shell.exec('git', ['config', 'user.name'], { cwd: localPath });
-      if (localResult.success && localResult.stdout) {
-        gitUsername = localResult.stdout.trim();
-      }
-    } catch {}
-
-    return { localPath, remoteUrl, gitUsername };
-  } catch {
-    return null;
-  }
-}
-
-/**
  * 执行全量扫描，查找 Git 项目
- * @param scanPaths 扫描路径列表
  */
-async function performScan(scanPaths: string[]) {
-  loading.value = true;
-  try {
-    const foundProjects: string[] = [];
-    const scanPromises = scanPaths.map(async scanPath => {
-      try {
-        const gitDirs = await fs.glob({ pattern: '**/.git', cwd: scanPath, absolute: true });
-        for (const gitDir of gitDirs) {
-          const projectPath = gitDir.replace(/[\\/].git$/, '');
-          if (projectPath && !foundProjects.includes(projectPath)) {
-            foundProjects.push(projectPath);
-          }
-        }
-      } catch {}
-    });
-    await Promise.all(scanPromises);
-
-    if (foundProjects.length === 0) {
-      info('未发现任何 Git 项目');
-      return;
-    }
-
-    const newProjects = [...props.projects];
-    for (const localPath of foundProjects) {
-      const normalizedPath = normalizePath(localPath);
-      const project = await validateAndGetProject(normalizedPath);
-      if (project) {
-        const existing = newProjects.find(p => p.localPath === normalizedPath);
-        if (!existing) {
-          newProjects.push(project);
+async function performScan(scanPaths: string[]): Promise<string[]> {
+  const foundProjects: string[] = [];
+  const scanPromises = scanPaths.map(async scanPath => {
+    try {
+      const gitDirs = await fs.glob({ pattern: '**/.git', cwd: scanPath, absolute: true });
+      for (const gitDir of gitDirs) {
+        const projectPath = gitDir.replace(/[\\/].git$/, '');
+        if (projectPath && !foundProjects.includes(projectPath)) {
+          foundProjects.push(projectPath);
         }
       }
-    }
-
-    emit('update:projects', newProjects);
-    success(`扫描完成，发现 ${foundProjects.length} 个项目`);
-  } catch (err) {
-    error(`扫描失败: ${err}`);
-  } finally {
-    loading.value = false;
-  }
+    } catch {}
+  });
+  await Promise.all(scanPromises);
+  return foundProjects;
 }
 
 /**
  * 处理开始扫描
  */
 async function handleStartScan() {
-  const scanPaths = scanPathsInput.value
-    .trim()
-    .split('\n')
-    .filter(p => p.trim());
-  if (scanPaths.length === 0) {
+  const paths = scanPathsInput.value.trim().split('\n');
+  const validPaths = paths.filter(p => p.trim());
+  if (validPaths.length === 0) {
     warning('请输入或选择至少一个扫描起始目录');
     return;
   }
-  emit('update:visible', false);
-  await performScan(scanPaths);
+  loading.value = true;
+  try {
+    const foundProjects = await performScan(validPaths);
+    if (foundProjects.length === 0) {
+      info('未发现任何 Git 项目');
+      return;
+    }
+    await mergeAddProjects(foundProjects, {
+      success: () => {
+        emit('update:visible', false);
+        scanPathsInput.value = '';
+      },
+      finally: () => {
+        loading.value = false;
+      },
+    });
+  } finally {
+    loading.value = false;
+  }
 }
 
 /**
