@@ -107,6 +107,7 @@ export async function mergeAddProjects(paths: string[], cb?: { success?: () => v
       message = '未添加或更新任何项目';
     }
     success(message);
+    await saveProjects();
     if (cb && cb.success) cb.success();
   } catch (err) {
     error(`添加失败: ${err}`);

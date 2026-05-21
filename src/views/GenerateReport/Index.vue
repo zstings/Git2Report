@@ -1,4 +1,4 @@
-<script setup lang="ts">
+ <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { useAI } from '@/composables/useAI';
 import { useConfig } from '@/composables/useConfig';
@@ -73,9 +73,16 @@ async function handleGenerateReport() {
       report.generatedReport.value += chunk;
     });
   } catch (err) {
-    error(`生成失败: ${err}`);
+    error(`生成失败: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     isGenerating.value = false;
+    if (report.generatedReport.value.trim() && appConfig.value.reportPath) {
+      try {
+        await report.saveDailyReport(appConfig.value.reportPath);
+      } catch {
+        // 自动存档失败时不阻塞，用户仍可手动存档
+      }
+    }
   }
 }
 
@@ -83,7 +90,7 @@ function selectElementText(element: HTMLElement) {
   const range = document.createRange();
   range.selectNodeContents(element);
   const selection = window.getSelection()!;
-  selection.removeAllRanges();
+  selection.removeAllRanges(); // 清除已有选中
   selection.addRange(range);
 }
 
@@ -132,11 +139,85 @@ function changeDate(days: number) {
 }
 
 function renderMarkdown(text: string | undefined): string {
+   if (!text || typeof text !== 'string') return '';
+
+  try {
+    const lines = text.split('\n');
+    let html = '';
+    const listStack: number[] = []; // 记录当前缩进层级
+
+    const closeLists = (toLevel: number) => {
+      while (listStack.length > toLevel) {
+        html += '</ul>';
+        listStack.pop();
+      }
+    };
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) {
+        closeLists(0);
+        continue;
+      }
+
+      // 1. 处理标题 (##### [项目A])
+      if (/^#{1,6}\s/.test(trimmedLine)) {
+        closeLists(0);
+        const level = trimmedLine.match(/^#+/)?.[0].length || 1;
+        const content = trimmedLine.replace(/^#+\s+/, '');
+        // 转换内部的加粗等格式
+        const formattedContent = formatInline(content);
+        html += `<h${level}>${formattedContent}</h${level}>`;
+        continue;
+      }
+
+      // 2. 处理分割线 (---)
+      if (/^[-*_]{3,}$/.test(trimmedLine)) {
+        closeLists(0);
+        html += '<hr style="border:none;border-top:1px solid #e6e5e6;margin:10px 0;" />';
+        continue;
+      }
+
+      // 3. 处理列表 (支持多级缩进)
+      const listMatch = line.match(/^(\s*)([-*])\s+(.*)$/);
+      if (listMatch) {
+        const indent = listMatch[1]?.length || 0;
+        const content = formatInline(listMatch[3] || '');
+
+        // 简单的层级判定：根据空格长度划分（0-1格为L1，2格以上为L2）
+        const currentLevel = indent === 0 ? 1 : 2;
+
+        if (currentLevel > listStack.length) {
+          html += '<ul style="list-style-type: disc; padding-left: 20px;">';
+          listStack.push(currentLevel);
+        } else if (currentLevel < listStack.length) {
+          closeLists(currentLevel);
+        }
+
+        html += `<li>${content}</li>`;
+      } else {
+        // 普通文本行
+        closeLists(0);
+        html += `<p>${formatInline(line)}</p>`;
+      }
+    }
+
+    closeLists(0);
+    return html;
+  } catch (error) {
+    console.error('渲染失败:', error);
+    return '';
+  }
+}
+
+// 专门处理行内格式，避免全局正则的陷阱
+function formatInline(text: string): string {
   if (!text) return '';
   return text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`(.*?)`/g, '<code>$1</code>');
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // 加粗
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')             // 斜体
+    .replace(/`(.*?)`/g, '<code>$1</code>')           // 代码
+    .replace(/【(.*?)】/g, '<span style="color:#1890ff;font-weight:bold;">【$1】</span>'); // 针对中文括号美化
 }
 
 watch(report.selectedDate, async () => {
