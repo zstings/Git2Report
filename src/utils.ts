@@ -51,3 +51,10 @@ ${data.systemPreference ? `用户偏好：${data.systemPreference}` : ''}`;
 export function normalizePath(path: string) {
   return path.replace(/\\/g, '/');
 }
+
+export function formatDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}

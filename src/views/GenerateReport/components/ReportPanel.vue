@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useAI } from '@/composables/useAI';
 import { useConfig } from '@/composables/useConfig';
 import { useMessage } from '@/composables/useMessage';
@@ -13,23 +13,15 @@ const { config: appConfig } = useConfig();
 const aiService = AIService.getInstance();
 
 const gitLogs = defineModel<GitCommitLog[]>('modelValue', { default: () => [] });
+const selectedDate = defineModel<string>('selectedDate', { default: '' });
+const dailyArchive = defineModel<Record<string, string>>('dailyArchive', { default: () => ({}) });
 
 const loading = ref(false);
 const isGenerating = ref(false);
 const isSaving = ref(false);
 const viewMode = ref<'preview' | 'edit'>('preview');
-
-function formatDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-const selectedDate = ref(formatDate(new Date()));
-const userNotes = ref('');
 const generatedReport = ref('');
-const dailyArchive = ref<Record<string, string>>({});
+const userNotes = ref('');
 const selectedReportType = ref<'daily' | 'weekly' | 'monthly'>('daily');
 
 const gitLogsText = computed(() => {
@@ -255,6 +247,17 @@ function formatInline(text: string): string {
 
 onMounted(async () => {
   await loadDailyArchive(appConfig.value.reportPath);
+  if (dailyArchive.value[selectedDate.value]) {
+    generatedReport.value = dailyArchive.value[selectedDate.value];
+  }
+});
+
+watch(selectedDate, () => {
+  if (dailyArchive.value[selectedDate.value]) {
+    generatedReport.value = dailyArchive.value[selectedDate.value];
+  } else {
+    generatedReport.value = '';
+  }
 });
 
 const emit = defineEmits<{

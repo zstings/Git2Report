@@ -3,34 +3,18 @@ import { ref, onMounted, watch } from 'vue';
 import DatePicker from '@/components/DatePicker.vue';
 import { storage } from 'vokex.app';
 import type { GitCommitLog } from '@/services/aiService';
+import { formatDate } from '@/utils';
 
 const loading = ref(false);
 
-function formatDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-const selectedDate = ref(formatDate(new Date()));
+const selectedDate = defineModel<string>('selectedDate', { default: '' });
 
 const gitLogs = defineModel<GitCommitLog[]>('modelValue', { default: () => [] });
+const dailyArchive = defineModel<Record<string, string>>('dailyArchive', { default: () => ({}) });
 const userNotes = ref('');
-const generatedReport = ref('');
-const dailyArchive = ref<Record<string, string>>({});
-
-function setDate(date: string) {
-  selectedDate.value = date;
-  generatedReport.value = '';
-}
 
 function hasArchivedReport(date: string): boolean {
   return !!dailyArchive.value[date];
-}
-
-function loadArchivedReport(date: string): string {
-  return dailyArchive.value[date] || '';
 }
 
 async function fetchGitLogsFromProjects(project: any[], targetDate: string): Promise<GitCommitLog[]> {
@@ -147,7 +131,7 @@ function truncate(str: string, maxLength: number = 50): string {
 function changeDate(days: number) {
   const current = new Date(selectedDate.value);
   current.setDate(current.getDate() + days);
-  setDate(formatDate(current));
+  selectedDate.value = formatDate(current);
 }
 
 async function handleLoadGitLogs() {
@@ -160,9 +144,6 @@ async function handleLoadGitLogs() {
     };
     const activeProject = savedProjects.filter((p: { isIgnored: boolean }) => !p.isIgnored);
     await loadGitLogs(activeProject, selectedDate.value);
-    if (hasArchivedReport(selectedDate.value)) {
-      generatedReport.value = loadArchivedReport(selectedDate.value);
-    }
   } finally {
     loading.value = false;
   }
