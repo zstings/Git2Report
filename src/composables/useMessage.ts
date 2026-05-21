@@ -12,18 +12,14 @@ interface MessageItem {
 const messages = ref<MessageItem[]>([]);
 let messageId = 0;
 
-function showMessage(
-  type: 'success' | 'error' | 'warning' | 'info',
-  message: string,
-  duration: number = 3000
-) {
+function showMessage(type: 'success' | 'error' | 'warning' | 'info', message: string, duration: number = 3000) {
   const id = ++messageId;
   messages.value.push({ id, type, message, duration });
   return id;
 }
 
 function closeMessage(id: number) {
-  const index = messages.value.findIndex((m) => m.id === id);
+  const index = messages.value.findIndex(m => m.id === id);
   if (index !== -1) {
     messages.value.splice(index, 1);
   }

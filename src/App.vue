@@ -280,7 +280,7 @@ html.dark *::-webkit-scrollbar-thumb:hover {
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9999;
+  z-index: 99999999;
   display: flex;
   flex-direction: column;
   align-items: center;
