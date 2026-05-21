@@ -8,6 +8,13 @@ export interface AIConfig {
   systemPreference: string;
 }
 
+export interface AIProfile {
+  id: string;
+  name: string;
+  config: AIConfig;
+  isActive: boolean;
+}
+
 export interface DailyArchive {
   [date: string]: string;
 }
@@ -21,9 +28,17 @@ export interface GitCommitLog {
   diff: string;
 }
 
+interface LegacyConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  systemPreference: string;
+}
+
 export class AIService {
   private static instance: AIService;
-  private config: AIConfig | null = null;
+  private profiles: AIProfile[] = [];
+  private activeProfileId: string | null = null;
 
   static getInstance(): AIService {
     if (!AIService.instance) {
@@ -32,42 +47,136 @@ export class AIService {
     return AIService.instance;
   }
 
-  async loadConfig(): Promise<AIConfig | null> {
+  getActiveProfile(): AIProfile | null {
+    return this.profiles.find(p => p.id === this.activeProfileId) || null;
+  }
+
+  getActiveConfig(): AIConfig | null {
+    const profile = this.getActiveProfile();
+    return profile?.config || null;
+  }
+
+  getAllProfiles(): AIProfile[] {
+    return [...this.profiles];
+  }
+
+  private async migrateLegacyConfig(): Promise<void> {
     try {
-      const hasConfig = await safeStorage.has('aiConfig');
-      if (hasConfig) {
-        const savedConfig = await safeStorage.getItem('aiConfig');
-        if (savedConfig) {
-          this.config = savedConfig as AIConfig;
-          return this.config;
+      const hasLegacy = await safeStorage.has('aiConfig');
+      if (hasLegacy) {
+        const legacyConfig = await safeStorage.getItem('aiConfig') as LegacyConfig | null;
+        if (legacyConfig && legacyConfig.apiKey) {
+          const hasNewFormat = await safeStorage.has('aiProfiles');
+          if (!hasNewFormat) {
+            const defaultProfile: AIProfile = {
+              id: this.generateId(),
+              name: '默认配置',
+              config: {
+                apiKey: legacyConfig.apiKey || '',
+                baseUrl: legacyConfig.baseUrl || 'https://api.openai.com/v1',
+                model: legacyConfig.model || 'gpt-3.5-turbo',
+                systemPreference: legacyConfig.systemPreference || '',
+              },
+              isActive: true,
+            };
+            await this.saveProfiles([defaultProfile]);
+            await safeStorage.removeItem('aiConfig');
+          }
         }
       }
-      return null;
     } catch (error) {
-      console.error('加载 AI 配置失败:', error);
-      return null;
+      console.error('迁移旧配置失败:', error);
     }
   }
 
-  async saveConfig(config: AIConfig): Promise<void> {
-    this.config = config;
-    await safeStorage.setItem('aiConfig', config);
+  async loadProfiles(): Promise<AIProfile[]> {
+    try {
+      const hasProfiles = await safeStorage.has('aiProfiles');
+      if (hasProfiles) {
+        const savedProfiles = await safeStorage.getItem('aiProfiles') as AIProfile[];
+        if (savedProfiles && Array.isArray(savedProfiles)) {
+          this.profiles = savedProfiles;
+          const activeProfile = this.profiles.find(p => p.isActive);
+          this.activeProfileId = activeProfile?.id || (this.profiles.length > 0 ? this.profiles[0].id : null);
+          return this.profiles;
+        }
+      }
+
+      await this.migrateLegacyConfig();
+      const migratedProfiles = await safeStorage.getItem('aiProfiles') as AIProfile[];
+      if (migratedProfiles && Array.isArray(migratedProfiles)) {
+        this.profiles = migratedProfiles;
+        this.activeProfileId = this.profiles.length > 0 ? this.profiles[0].id : null;
+        return this.profiles;
+      }
+
+      return [];
+    } catch (error) {
+      console.error('加载 AI 配置失败:', error);
+      return [];
+    }
+  }
+
+  async saveProfiles(profiles: AIProfile[]): Promise<void> {
+    this.profiles = profiles;
+    await safeStorage.setItem('aiProfiles', profiles);
+  }
+
+  async addProfile(profile: AIProfile): Promise<void> {
+    this.profiles.push(profile);
+    await this.saveProfiles(this.profiles);
+  }
+
+  async updateProfile(profileId: string, updates: Partial<AIProfile>): Promise<void> {
+    const index = this.profiles.findIndex(p => p.id === profileId);
+    if (index !== -1) {
+      this.profiles[index] = { ...this.profiles[index], ...updates };
+      await this.saveProfiles(this.profiles);
+    }
+  }
+
+  async deleteProfile(profileId: string): Promise<void> {
+    this.profiles = this.profiles.filter(p => p.id !== profileId);
+    if (this.activeProfileId === profileId) {
+      this.activeProfileId = this.profiles.length > 0 ? this.profiles[0].id : null;
+      if (this.activeProfileId) {
+        this.profiles = this.profiles.map(p => ({
+          ...p,
+          isActive: p.id === this.activeProfileId,
+        }));
+      }
+    }
+    await this.saveProfiles(this.profiles);
+  }
+
+  async setActiveProfile(profileId: string): Promise<void> {
+    this.profiles = this.profiles.map(p => ({
+      ...p,
+      isActive: p.id === profileId,
+    }));
+    this.activeProfileId = profileId;
+    await this.saveProfiles(this.profiles);
+  }
+
+  generateId(): string {
+    return `profile_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   async generateDailyReport(gitLogs: string, userNotes: string, onChunk?: (chunk: string) => void): Promise<string> {
-    if (!this.config) {
+    const config = this.getActiveConfig();
+    if (!config) {
       throw new Error('请先配置 AI 服务');
     }
 
-    const systemPrompt = todaySystemPrompt(this.config);
+    const systemPrompt = todaySystemPrompt(config);
 
     const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || '无'}`;
 
     try {
-      const response = await http.fetch(`${this.config.baseUrl}/chat/completions`, {
+      const response = await http.fetch(`${config.baseUrl}/chat/completions`, {
         method: 'POST',
         body: {
-          model: this.config.model,
+          model: config.model,
           messages: [
             {
               role: 'system',
@@ -82,7 +191,7 @@ export class AIService {
           stream: !!onChunk,
         },
         headers: {
-          Authorization: `Bearer ${this.config.apiKey}`,
+          Authorization: `Bearer ${config.apiKey}`,
         },
         stream: !!onChunk,
         timeout: 120,
@@ -135,8 +244,8 @@ export class AIService {
                 fullText += content;
                 onChunk(content);
               }
-            } catch (e) {
-              console.warn('解析 SSE 数据失败:', e);
+            } catch {
+              console.warn('解析 SSE 数据失败');
             }
           }
         }
@@ -160,7 +269,7 @@ export class AIService {
       if (exists) {
         const rawContent = await fs.readFile(archivePath, { encoding: 'utf8' });
 
-        let fileContent: string = '';
+        let fileContent = '';
 
         if (typeof rawContent === 'string') {
           fileContent = rawContent;
@@ -184,11 +293,8 @@ export class AIService {
 
   async loadDailyArchive(reportPath: string): Promise<DailyArchive> {
     try {
-      console.log('load-1', new Date().toLocaleTimeString());
       const archivePath = await path.join(reportPath, 'summary', 'daily_archive.json');
-      console.log('load-2', new Date().toLocaleTimeString());
       const exists = await fs.exists(archivePath);
-      console.log('load-3', new Date().toLocaleTimeString());
       if (!exists) {
         return {};
       }

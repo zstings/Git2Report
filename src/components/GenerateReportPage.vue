@@ -6,11 +6,15 @@ import { useReport } from '../composables/useReport';
 import { useProjects } from '../composables/useProjects';
 import { useMessage } from '../composables/useMessage';
 import DatePicker from './DatePicker.vue';
+import AIConfigModal from './AIConfigModal.vue';
 import { storage } from 'vokex.app';
 
 const { success, error, warning, info } = useMessage();
 
-const { config: aiConfig, loadConfig: loadAIConfig, saveConfig: saveAIConfig } = useAI();
+const {
+  activeConfig,
+  loadProfiles,
+} = useAI();
 const { config: appConfig, loadConfig: loadAppConfig } = useConfig();
 const { loadProjects } = useProjects();
 const report = useReport();
@@ -70,7 +74,7 @@ async function handleLoadGitLogs() {
 }
 
 async function handleGenerateReport() {
-  if (!aiConfig.value.apiKey) {
+  if (!activeConfig.value?.apiKey) {
     warning('请先配置 AI 服务');
     showAIConfig.value = true;
     return;
@@ -138,12 +142,6 @@ async function handleSaveReport() {
   } finally {
     isSaving.value = false;
   }
-}
-
-async function handleSaveAIConfig() {
-  await saveAIConfig();
-  showAIConfig.value = false;
-  success('配置已保存');
 }
 
 function formatDate(date: Date): string {
@@ -245,7 +243,7 @@ watch(report.selectedDate, async () => {
 });
 
 onMounted(async () => {
-  await Promise.all([loadAIConfig(), loadAppConfig()]);
+  await Promise.all([loadProfiles(), loadAppConfig()]);
   await loadProjects();
   await report.loadDailyArchive(appConfig.value.reportPath);
   await handleLoadGitLogs();
@@ -337,36 +335,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-if="showAIConfig" class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>AI 配置</h3>
-          <button class="close-btn" @click="showAIConfig = false">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>API Key</label>
-            <input v-model="aiConfig.apiKey" type="password" placeholder="请输入 API Key" />
-          </div>
-          <div class="form-group">
-            <label>Base URL</label>
-            <input v-model="aiConfig.baseUrl" type="text" placeholder="https://api.openai.com/v1" />
-          </div>
-          <div class="form-group">
-            <label>Model</label>
-            <input v-model="aiConfig.model" type="text" placeholder="gpt-3.5-turbo" />
-          </div>
-          <div class="form-group">
-            <label>个人偏好（选填）</label>
-            <textarea v-model="aiConfig.systemPreference" placeholder="例如：字数要求精炼，按格式：进展/问题/规划输出..." />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-cancel" @click="showAIConfig = false">取消</button>
-          <button class="btn-save" @click="handleSaveAIConfig">保存</button>
-        </div>
-      </div>
-    </div>
+    <AIConfigModal v-model:visible="showAIConfig" />
 
   </div>
 </template>
