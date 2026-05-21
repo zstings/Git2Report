@@ -17,6 +17,9 @@ const editNameInput = ref('');
 const addProjectPathsInput = ref('');
 const scanPathsInput = ref('');
 
+/**
+ * 过滤项目列表（根据搜索关键词）
+ */
 const filteredProjects = computed(() => {
   let result = projects.value;
   if (searchQuery.value.trim()) {
@@ -31,6 +34,11 @@ const filteredProjects = computed(() => {
   return result;
 });
 
+/**
+ * 获取项目显示名称（优先使用自定义名称，否则使用路径最后一段）
+ * @param project 项目对象
+ * @returns 显示名称
+ */
 function getProjectDisplayName(project: GitProject): string {
   if (project.displayName) {
     return project.displayName;
@@ -38,6 +46,9 @@ function getProjectDisplayName(project: GitProject): string {
   return project.localPath.split(/[\\/]/).pop() || '未知项目';
 }
 
+/**
+ * 初始化加载项目列表
+ */
 async function loadProjectsInit() {
   loading.value = true;
   loadProjects(() => {
@@ -45,6 +56,10 @@ async function loadProjectsInit() {
   });
 }
 
+/**
+ * 切换项目忽略状态
+ * @param projectPath 项目路径
+ */
 async function toggleProjectIgnore(projectPath: string) {
   const project = projects.value.find(p => p.localPath === projectPath);
   if (project) {
@@ -53,12 +68,19 @@ async function toggleProjectIgnore(projectPath: string) {
   }
 }
 
+/**
+ * 打开编辑名称模态框
+ * @param project 待编辑的项目
+ */
 function openEditModal(project: GitProject) {
   editingProject.value = project;
   editNameInput.value = project.displayName || '';
   showEditModal.value = true;
 }
 
+/**
+ * 保存自定义名称
+ */
 async function saveDisplayName() {
   if (!editingProject.value) return;
   const project = projects.value.find(p => p.localPath === editingProject.value!.localPath);
@@ -71,12 +93,18 @@ async function saveDisplayName() {
   editNameInput.value = '';
 }
 
+/**
+ * 关闭编辑模态框
+ */
 function closeEditModal() {
   showEditModal.value = false;
   editingProject.value = null;
   editNameInput.value = '';
 }
 
+/**
+ * 选择目录用于添加项目
+ */
 async function handleSelectDirectoriesForAdd() {
   const result = await dialog.showOpenDialog({
     title: '选择 Git 项目目录',
@@ -101,6 +129,11 @@ async function handleSelectDirectoriesForAdd() {
   }
 }
 
+/**
+ * 验证并获取项目信息（检查是否为 Git 仓库，获取远程 URL 和用户名）
+ * @param localPath 本地路径
+ * @returns 项目信息或 null
+ */
 async function validateAndGetProject(localPath: string): Promise<GitProject | null> {
   try {
     const gitDir = await path.join(localPath, '.git');
@@ -129,6 +162,9 @@ async function validateAndGetProject(localPath: string): Promise<GitProject | nu
   }
 }
 
+/**
+ * 处理添加项目
+ */
 async function handleAddProjects() {
   const paths = addProjectPathsInput.value
     .trim()
@@ -164,16 +200,25 @@ async function handleAddProjects() {
   }
 }
 
+/**
+ * 关闭添加项目模态框
+ */
 function closeAddModal() {
   showAddModal.value = false;
   addProjectPathsInput.value = '';
 }
 
+/**
+ * 关闭扫描模态框
+ */
 function closeScanModal() {
   showScanModal.value = false;
   scanPathsInput.value = '';
 }
 
+/**
+ * 选择扫描起始目录
+ */
 async function handleSelectDirectoriesForScan() {
   const result = await dialog.showOpenDialog({
     title: '选择扫描起始目录',
@@ -190,6 +235,10 @@ async function handleSelectDirectoriesForScan() {
   }
 }
 
+/**
+ * 执行全量扫描，查找 Git 项目
+ * @param scanPaths 扫描路径列表
+ */
 async function performScan(scanPaths: string[]) {
   loading.value = true;
   try {
@@ -232,6 +281,9 @@ async function performScan(scanPaths: string[]) {
   }
 }
 
+/**
+ * 处理开始扫描
+ */
 async function handleStartScan() {
   const scanPaths = scanPathsInput.value
     .trim()
