@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useMessage } from '../../composables/useMessage';
-import { dialog, fs, path, shell } from 'vokex.app';
 import { loadProjects, saveProjects, projects, type GitProject } from '../../projects';
-import { normalizePath } from '@/utils';
-
-const { success, error, warning, info } = useMessage();
+import AddProjectModal from './components/AddProjectModal.vue';
+import ScanProjectsModal from './components/ScanProjectsModal.vue';
 
 const loading = ref(false);
 const searchQuery = ref('');
@@ -14,8 +11,6 @@ const showAddModal = ref(false);
 const showScanModal = ref(false);
 const editingProject = ref<GitProject | null>(null);
 const editNameInput = ref('');
-const addProjectPathsInput = ref('');
-const scanPathsInput = ref('');
 
 /**
  * 过滤项目列表（根据搜索关键词）
@@ -103,198 +98,12 @@ function closeEditModal() {
 }
 
 /**
- * 选择目录用于添加项目
+ * 更新项目列表（由子组件调用）
+ * @param newProjects 新的项目列表
  */
-async function handleSelectDirectoriesForAdd() {
-  const result = await dialog.showOpenDialog({
-    title: '选择 Git 项目目录',
-    multiple: true,
-    directory: true,
-  });
-
-  let selectedPaths: string[] = [];
-  if (Array.isArray(result) && result.length > 0) {
-    selectedPaths = result;
-  } else if (typeof result === 'string' && result) {
-    selectedPaths = [result];
-  }
-
-  if (selectedPaths.length > 0) {
-    const existingPaths = addProjectPathsInput.value
-      .trim()
-      .split('\n')
-      .filter(p => p.trim());
-    const newPaths = [...new Set([...existingPaths, ...selectedPaths])];
-    addProjectPathsInput.value = newPaths.join('\n');
-  }
-}
-
-/**
- * 验证并获取项目信息（检查是否为 Git 仓库，获取远程 URL 和用户名）
- * @param localPath 本地路径
- * @returns 项目信息或 null
- */
-async function validateAndGetProject(localPath: string): Promise<GitProject | null> {
-  try {
-    const gitDir = await path.join(localPath, '.git');
-    const exists = await fs.exists(gitDir);
-    if (!exists) return null;
-
-    let remoteUrl = 'none';
-    try {
-      const result = await shell.exec('git', ['config', '--get', 'remote.origin.url'], { cwd: localPath });
-      if (result.success && result.stdout) {
-        remoteUrl = result.stdout.trim();
-      }
-    } catch {}
-
-    let gitUsername = '';
-    try {
-      const localResult = await shell.exec('git', ['config', 'user.name'], { cwd: localPath });
-      if (localResult.success && localResult.stdout) {
-        gitUsername = localResult.stdout.trim();
-      }
-    } catch {}
-
-    return { localPath, remoteUrl, gitUsername };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 处理添加项目
- */
-async function handleAddProjects() {
-  const paths = addProjectPathsInput.value
-    .trim()
-    .split('\n')
-    .filter(p => p.trim());
-  if (paths.length === 0) {
-    warning('请输入或选择项目路径');
-    return;
-  }
-  loading.value = true;
-  try {
-    for (const localPath of paths) {
-      const normalizedPath = normalizePath(localPath);
-      const project = await validateAndGetProject(normalizedPath);
-      if (project) {
-        const item = projects.value.find(p => p.localPath === normalizedPath);
-        if (item) {
-          item.remoteUrl = project.remoteUrl;
-          item.gitUsername = project.gitUsername;
-        } else {
-          projects.value.push(project);
-        }
-      }
-    }
-    await saveProjects();
-    showAddModal.value = false;
-    addProjectPathsInput.value = '';
-    success('项目添加成功');
-  } catch (err) {
-    error(`添加失败: ${err}`);
-  } finally {
-    loading.value = false;
-  }
-}
-
-/**
- * 关闭添加项目模态框
- */
-function closeAddModal() {
-  showAddModal.value = false;
-  addProjectPathsInput.value = '';
-}
-
-/**
- * 关闭扫描模态框
- */
-function closeScanModal() {
-  showScanModal.value = false;
-  scanPathsInput.value = '';
-}
-
-/**
- * 选择扫描起始目录
- */
-async function handleSelectDirectoriesForScan() {
-  const result = await dialog.showOpenDialog({
-    title: '选择扫描起始目录',
-    multiple: true,
-    directory: true,
-  });
-  if (Array.isArray(result) && result.length > 0) {
-    const existingPaths = scanPathsInput.value
-      .split('\n')
-      .map(p => p.trim())
-      .filter(p => p.length > 0);
-    const newPaths = result.filter(p => !existingPaths.includes(p));
-    scanPathsInput.value = [...existingPaths, ...newPaths].join('\n');
-  }
-}
-
-/**
- * 执行全量扫描，查找 Git 项目
- * @param scanPaths 扫描路径列表
- */
-async function performScan(scanPaths: string[]) {
-  loading.value = true;
-  try {
-    const foundProjects: string[] = [];
-    const scanPromises = scanPaths.map(async scanPath => {
-      try {
-        const gitDirs = await fs.glob({ pattern: '**/.git', cwd: scanPath, absolute: true });
-        for (const gitDir of gitDirs) {
-          const projectPath = gitDir.replace(/[\\/].git$/, '');
-          if (projectPath && !foundProjects.includes(projectPath)) {
-            foundProjects.push(projectPath);
-          }
-        }
-      } catch {}
-    });
-    await Promise.all(scanPromises);
-
-    if (foundProjects.length === 0) {
-      info('未发现任何 Git 项目');
-      return;
-    }
-
-    for (const localPath of foundProjects) {
-      const normalizedPath = normalizePath(localPath);
-      const project = await validateAndGetProject(normalizedPath);
-      if (project) {
-        const existing = projects.value.find(p => p.localPath === normalizedPath);
-        if (!existing) {
-          projects.value.push(project);
-        }
-      }
-    }
-
-    await saveProjects();
-    success(`扫描完成，发现 ${foundProjects.length} 个项目`);
-  } catch (err) {
-    error(`扫描失败: ${err}`);
-  } finally {
-    loading.value = false;
-  }
-}
-
-/**
- * 处理开始扫描
- */
-async function handleStartScan() {
-  const scanPaths = scanPathsInput.value
-    .trim()
-    .split('\n')
-    .filter(p => p.trim());
-  if (scanPaths.length === 0) {
-    warning('请输入或选择至少一个扫描起始目录');
-    return;
-  }
-  closeScanModal();
-  await performScan(scanPaths);
+async function updateProjects(newProjects: GitProject[]) {
+  projects.value = newProjects;
+  await saveProjects();
 }
 
 onMounted(async () => {
@@ -376,45 +185,9 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-if="showAddModal" class="modal-overlay">
-      <div class="modal add-modal">
-        <div class="modal-header">
-          <h3>添加项目</h3>
-          <button class="close-btn" @click="closeAddModal">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>项目路径</label>
-            <textarea v-model="addProjectPathsInput" class="path-textarea" placeholder="请输入项目路径，每行一个" />
-            <button class="btn-select-dir" @click="handleSelectDirectoriesForAdd">选择目录</button>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-cancel" @click="closeAddModal">取消</button>
-          <button class="btn-save" @click="handleAddProjects" :disabled="loading">确定</button>
-        </div>
-      </div>
-    </div>
+    <AddProjectModal :projects="projects" :visible="showAddModal" @update:visible="showAddModal = $event" @update:projects="updateProjects" />
 
-    <div v-if="showScanModal" class="modal-overlay">
-      <div class="modal add-modal">
-        <div class="modal-header">
-          <h3>全量扫描</h3>
-          <button class="close-btn" @click="closeScanModal">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>扫描起始目录</label>
-            <textarea v-model="scanPathsInput" class="path-textarea" placeholder="请输入扫描起始目录" />
-            <button class="btn-select-dir" @click="handleSelectDirectoriesForScan">选择目录</button>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-cancel" @click="closeScanModal">取消</button>
-          <button class="btn-save" @click="handleStartScan" :disabled="loading">开始扫描</button>
-        </div>
-      </div>
-    </div>
+    <ScanProjectsModal :projects="projects" :visible="showScanModal" @update:visible="showScanModal = $event" @update:projects="updateProjects" />
   </div>
 </template>
 
