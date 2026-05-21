@@ -1,24 +1,28 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { dialog } from 'vokex.app';
-import { type GitProject, mergeAddProjects } from '@/projects';
+import { mergeAddProjects } from '@/projects';
 import { useMessage } from '@/composables/useMessage';
+import AppDialog from '@/components/AppDialog.vue';
+import AppTextarea from '@/components/AppTextarea.vue';
 
-defineProps<{
-  visible: boolean;
-}>();
+/**
+ * 添加项目弹窗组件
+ * 用于批量添加 Git 项目，支持手动输入路径或选择目录
+ */
 
-const emit = defineEmits<{
-  (e: 'update:visible', value: boolean): void;
-  (e: 'update:projects', value: GitProject[]): void;
-}>();
+/** 是否显示弹窗（使用 defineModel 宏实现双向绑定） */
+const visible = defineModel<boolean>('visible', { default: false });
 
 const { success, warning } = useMessage();
+/** 项目路径输入内容（多行文本，每行一个路径） */
 const addProjectPathsInput = ref('');
+/** 是否正在加载 */
 const loading = ref(false);
 
 /**
- * 选择目录用于添加项目
+ * 选择目录按钮点击处理
+ * 通过系统对话框选择一个或多个目录
  */
 async function handleSelectDirectories() {
   const result = await dialog.showOpenDialog({
@@ -45,7 +49,8 @@ async function handleSelectDirectories() {
 }
 
 /**
- * 处理添加项目
+ * 添加项目按钮点击处理
+ * 验证输入路径并调用 mergeAddProjects 批量添加项目
  */
 async function handleAddProjects() {
   const paths = addProjectPathsInput.value.trim().split('\n');
@@ -58,7 +63,7 @@ async function handleAddProjects() {
   await mergeAddProjects(validPaths, {
     success: () => {
       success('项目添加成功');
-      emit('update:visible', false);
+      visible.value = false;
       addProjectPathsInput.value = '';
     },
     finally: () => {
@@ -68,117 +73,51 @@ async function handleAddProjects() {
 }
 
 /**
- * 关闭模态框
+ * 关闭弹窗处理
+ * 重置输入内容并触发关闭事件
  */
 function closeModal() {
-  emit('update:visible', false);
+  visible.value = false;
   addProjectPathsInput.value = '';
 }
 </script>
 
 <template>
-  <div v-if="visible" class="modal-overlay" @click.self="closeModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>添加项目</h3>
-        <button class="modal-close" @click="closeModal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>项目路径（每行一个）</label>
-          <textarea v-model="addProjectPathsInput" placeholder="输入项目路径，每行一个" rows="6" class="form-control"></textarea>
-          <button @click="handleSelectDirectories" class="btn btn-secondary mt-2">选择目录</button>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button @click="closeModal" class="btn btn-secondary">取消</button>
-        <button @click="handleAddProjects" class="btn btn-primary" :disabled="loading">
-          {{ loading ? '添加中...' : '确定' }}
-        </button>
-      </div>
+  <AppDialog v-model:visible="visible" title="添加项目" width="460px" @close="closeModal">
+    <div class="form-group">
+      <label>项目路径（每行一个）</label>
+      <AppTextarea v-model="addProjectPathsInput" placeholder="输入项目路径，每行一个" :rows="6" />
+      <button @click="handleSelectDirectories" class="btn btn-secondary mt-2">选择目录</button>
     </div>
-  </div>
+    <template #footer>
+      <button @click="closeModal" class="btn btn-secondary">取消</button>
+      <button @click="handleAddProjects" class="btn btn-primary" :disabled="loading">
+        {{ loading ? '添加中...' : '确定' }}
+      </button>
+    </template>
+  </AppDialog>
 </template>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--bg-panel);
-  border-radius: 8px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 16px;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: var(--text-muted);
-}
-
-.modal-body {
-  padding: 16px;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 16px;
-  border-top: 1px solid var(--border-color);
-}
-
 .form-group {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.form-control {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg-input);
-  color: var(--text-color);
-  font-size: 14px;
-  resize: vertical;
+  font-weight: 500;
+  color: var(--text-regular);
+  font-size: 13px;
 }
 
 .btn {
   padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+  border-radius: var(--radius-md);
   font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
 }
 
 .btn-primary {
@@ -186,9 +125,19 @@ function closeModal() {
   color: white;
 }
 
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-secondary {
-  background: var(--bg-button);
-  color: var(--text-color);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--text-regular);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-sidebar);
 }
 
 .mt-2 {

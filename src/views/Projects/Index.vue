@@ -528,4 +528,16 @@ onMounted(async () => {
   cursor: pointer;
   margin-top: 8px;
 }
+
+.alert {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+
+.alert-info {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--color-primary);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
 </style>
