@@ -3,17 +3,22 @@ import { ref } from 'vue';
 import { dialog, fs } from 'vokex.app';
 import { mergeAddProjects } from '@/projects';
 import { useMessage } from '@/composables/useMessage';
+import AppDialog from '@/components/AppDialog.vue';
+import AppTextarea from '@/components/AppTextarea.vue';
+import AppButton from '@/components/AppButton.vue';
 
-defineProps<{
-  visible: boolean;
-}>();
+/**
+ * 全量扫描弹窗组件
+ * 用于递归扫描指定目录下所有 Git 项目
+ */
 
-const emit = defineEmits<{
-  (e: 'update:visible', value: boolean): void;
-}>();
+/** 是否显示弹窗（使用 defineModel 宏实现双向绑定） */
+const visible = defineModel<boolean>('visible', { default: false });
 
 const { warning, info } = useMessage();
+/** 扫描起始目录输入内容 */
 const scanPathsInput = ref('');
+/** 是否正在扫描 */
 const loading = ref(false);
 
 /**
@@ -37,6 +42,8 @@ async function handleSelectDirectories() {
 
 /**
  * 执行全量扫描，查找 Git 项目
+ * @param scanPaths - 需要扫描的目录列表
+ * @returns 找到的 Git 项目路径数组
  */
 async function performScan(scanPaths: string[]): Promise<string[]> {
   const foundProjects: string[] = [];
@@ -74,7 +81,7 @@ async function handleStartScan() {
     }
     await mergeAddProjects(foundProjects, {
       success: () => {
-        emit('update:visible', false);
+        visible.value = false;
         scanPathsInput.value = '';
       },
       finally: () => {
@@ -87,91 +94,34 @@ async function handleStartScan() {
 }
 
 /**
- * 关闭模态框
+ * 关闭弹窗
  */
 function closeModal() {
-  emit('update:visible', false);
+  visible.value = false;
   scanPathsInput.value = '';
 }
 </script>
 
 <template>
-  <div v-if="visible" class="modal-overlay" @click.self="closeModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>全盘扫描</h3>
-        <button class="modal-close" @click="closeModal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>扫描起始目录（每行一个）</label>
-          <textarea v-model="scanPathsInput" placeholder="输入扫描起始目录，每行一个" rows="6" class="form-control"></textarea>
-          <button @click="handleSelectDirectories" class="btn btn-secondary mt-2">选择目录</button>
-        </div>
-        <div class="alert alert-info"><strong>提示：</strong>扫描会递归查找所有包含 .git 的目录，请谨慎选择扫描范围。</div>
-      </div>
-      <div class="modal-footer">
-        <button @click="closeModal" class="btn btn-secondary">取消</button>
-        <button @click="handleStartScan" class="btn btn-primary" :disabled="loading">
-          {{ loading ? '扫描中...' : '开始扫描' }}
-        </button>
-      </div>
+  <AppDialog v-model:visible="visible" title="全量扫描" width="500px" @close="closeModal">
+    <div class="form-group">
+      <label>扫描起始目录（每行一个）</label>
+      <AppTextarea v-model="scanPathsInput" placeholder="输入扫描起始目录，每行一个" :rows="6" />
+      <AppButton type="secondary" @click="handleSelectDirectories" class="mt-2">选择目录</AppButton>
     </div>
-  </div>
+    <div class="alert alert-info">
+      <strong>提示：</strong>扫描会递归查找所有包含 .git 的目录，请谨慎选择扫描范围。
+    </div>
+    <template #footer>
+      <AppButton type="secondary" @click="closeModal">取消</AppButton>
+      <AppButton type="primary" :loading="loading" @click="handleStartScan">
+        {{ loading ? '扫描中...' : '开始扫描' }}
+      </AppButton>
+    </template>
+  </AppDialog>
 </template>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--bg-panel);
-  border-radius: 8px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 16px;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: var(--text-muted);
-}
-
-.modal-body {
-  padding: 16px;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 16px;
-  border-top: 1px solid var(--border-color);
-}
-
 .form-group {
   margin-bottom: 12px;
 }
@@ -180,35 +130,8 @@ function closeModal() {
   display: block;
   margin-bottom: 8px;
   font-size: 14px;
-}
-
-.form-control {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg-input);
-  color: var(--text-color);
-  font-size: 14px;
-  resize: vertical;
-}
-
-.btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.btn-primary {
-  background: var(--color-primary);
-  color: white;
-}
-
-.btn-secondary {
-  background: var(--bg-button);
-  color: var(--text-color);
+  font-weight: 500;
+  color: var(--text-regular);
 }
 
 .mt-2 {
@@ -217,7 +140,7 @@ function closeModal() {
 
 .alert {
   padding: 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   font-size: 13px;
 }
 
