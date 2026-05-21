@@ -1,45 +1,88 @@
 import { http, safeStorage, fs, path } from 'vokex.app';
 import { todaySystemPrompt } from '../utils';
 
+/**
+ * AI 配置接口
+ */
 export interface AIConfig {
+  /** API 密钥 */
   apiKey: string;
+  /** API 基础地址 */
   baseUrl: string;
+  /** 模型名称 */
   model: string;
+  /** 个人偏好设置 */
   systemPreference: string;
 }
 
+/**
+ * AI 配置档案接口
+ */
 export interface AIProfile {
+  /** 档案 ID */
   id: string;
+  /** 档案名称 */
   name: string;
+  /** AI 配置 */
   config: AIConfig;
+  /** 是否为当前活跃档案 */
   isActive: boolean;
 }
 
+/**
+ * 日报存档接口
+ */
 export interface DailyArchive {
+  /** 日期到内容的映射 */
   [date: string]: string;
 }
 
+/**
+ * Git 提交日志接口
+ */
 export interface GitCommitLog {
+  /** 项目本地路径 */
   projectPath: string;
+  /** 项目显示名称 */
   projectName: string;
+  /** 提交哈希 */
   hash: string;
+  /** 提交日期 */
   date: string;
+  /** 提交内容 */
   content: string;
+  /** 提交差异 */
   diff: string;
 }
 
+/**
+ * 旧版配置接口（用于配置迁移）
+ */
 interface LegacyConfig {
+  /** API 密钥 */
   apiKey: string;
+  /** API 基础地址 */
   baseUrl: string;
+  /** 模型名称 */
   model: string;
+  /** 个人偏好设置 */
   systemPreference: string;
 }
 
+/**
+ * AI 服务类
+ * 提供 AI 配置管理和日报生成功能
+ * 采用单例模式，确保全局唯一实例
+ */
 export class AIService {
   private static instance: AIService;
   private profiles: AIProfile[] = [];
   private activeProfileId: string | null = null;
 
+  /**
+   * 获取单例实例
+   * @returns AIService 实例
+   */
   static getInstance(): AIService {
     if (!AIService.instance) {
       AIService.instance = new AIService();
@@ -47,19 +90,35 @@ export class AIService {
     return AIService.instance;
   }
 
+  /**
+   * 获取当前活跃的配置档案
+   * @returns 活跃档案或 null
+   */
   getActiveProfile(): AIProfile | null {
     return this.profiles.find(p => p.id === this.activeProfileId) || null;
   }
 
+  /**
+   * 获取当前活跃的 AI 配置
+   * @returns AI 配置或 null
+   */
   getActiveConfig(): AIConfig | null {
     const profile = this.getActiveProfile();
     return profile?.config || null;
   }
 
+  /**
+   * 获取所有配置档案
+   * @returns 档案列表副本
+   */
   getAllProfiles(): AIProfile[] {
     return [...this.profiles];
   }
 
+  /**
+   * 迁移旧版配置到新版格式
+   * 私有方法，仅在首次加载时调用
+   */
   private async migrateLegacyConfig(): Promise<void> {
     try {
       const hasLegacy = await safeStorage.has('aiConfig');
@@ -89,6 +148,10 @@ export class AIService {
     }
   }
 
+  /**
+   * 从本地存储加载配置档案
+   * @returns 配置档案列表
+   */
   async loadProfiles(): Promise<AIProfile[]> {
     try {
       const hasProfiles = await safeStorage.has('aiProfiles');
@@ -122,6 +185,10 @@ export class AIService {
     await safeStorage.setItem('aiProfiles', profiles);
   }
 
+  /**
+   * 添加新的配置档案
+   * @param profile - 要添加的档案
+   */
   async addProfile(profile: AIProfile): Promise<void> {
     this.profiles.push(profile);
     await this.saveProfiles(this.profiles);
@@ -162,6 +229,13 @@ export class AIService {
     return `profile_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
+  /**
+   * 生成日报
+   * @param gitLogs - Git 提交日志
+   * @param userNotes - 用户补充内容
+   * @param onChunk - 流式回调函数
+   * @returns 生成的日报内容
+   */
   async generateDailyReport(gitLogs: string, userNotes: string, onChunk?: (chunk: string) => void): Promise<string> {
     const config = this.getActiveConfig();
     if (!config) {
@@ -214,6 +288,12 @@ export class AIService {
     }
   }
 
+  /**
+   * 解析 SSE 流式响应
+   * @param response - HTTP 响应对象
+   * @param onChunk - 片段回调函数
+   * @returns 完整文本内容
+   */
   private async parseSSEStream(response: Response, onChunk: (chunk: string) => void): Promise<string> {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
