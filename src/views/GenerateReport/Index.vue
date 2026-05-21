@@ -238,9 +238,9 @@ onMounted(async () => {
       <div class="git-panel">
         <div class="panel-header">
           <div class="date-navigator">
-            <button class="btn-icon" @click="changeDate(-1)">‹</button>
+            <button class="btn-icon" @click="changeDate(-1)" title="前一天">‹</button>
             <DatePicker v-model="report.selectedDate.value" />
-            <button class="btn-icon" @click="changeDate(1)">›</button>
+            <button class="btn-icon" @click="changeDate(1)" title="后一天">›</button>
           </div>
         </div>
 
@@ -264,6 +264,7 @@ onMounted(async () => {
                 <span class="project-badge">{{ log.projectName }}</span>
               </div>
               <div class="log-message">{{ truncate(log.content) }}</div>
+              <div v-if="log.diff" class="log-diff">包含代码变更</div>
             </div>
           </div>
         </div>
@@ -282,11 +283,11 @@ onMounted(async () => {
       <div class="report-panel">
         <div class="panel-header">
           <div class="report-type-tabs">
-            <button class="tab-btn active">日报</button>
-            <button class="tab-btn" disabled>周报</button>
-            <button class="tab-btn" disabled>月报</button>
+            <button class="tab-btn" @click="report.setReportType('daily')" :class="{ active: report.selectedReportType.value === 'daily' }">日报</button>
+            <button class="tab-btn" @click="report.setReportType('weekly')" :class="{ active: report.selectedReportType.value === 'weekly' }">周报</button>
+            <button class="tab-btn" @click="report.setReportType('monthly')" :class="{ active: report.selectedReportType.value === 'monthly' }">月报</button>
           </div>
-          <button class="btn-icon" @click="showAIConfig = true">⚙️</button>
+          <button class="btn-icon" @click="showAIConfig = true" title="AI 配置">⚙️</button>
         </div>
 
         <button class="generate-btn" @click="handleGenerateReport" :disabled="isGenerating">
@@ -300,7 +301,7 @@ onMounted(async () => {
         </div>
 
         <div class="report-content">
-          <textarea v-if="viewMode === 'edit'" v-model="report.generatedReport.value" class="report-editor" />
+          <textarea v-if="viewMode === 'edit'" v-model="report.generatedReport.value" class="report-editor" placeholder="点击上方按钮生成报告..." />
           <div v-else class="report-preview markdown-body">
             <div v-if="report.generatedReport.value" v-html="renderMarkdown(report.generatedReport.value)"></div>
             <div v-else class="placeholder-text">点击上方按钮生成报告...</div>
@@ -331,6 +332,7 @@ onMounted(async () => {
 .workflow-container {
   display: flex;
   height: 100vh;
+  gap: 0;
 }
 
 .git-panel {
@@ -357,6 +359,7 @@ onMounted(async () => {
   align-items: center;
   padding: 16px 20px;
   border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .date-navigator {
@@ -373,6 +376,13 @@ onMounted(async () => {
   background: transparent;
   font-size: 18px;
   cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+
+.btn-icon:hover {
+  background: var(--bg-sidebar);
+  color: var(--text-primary);
 }
 
 .loading-container {
@@ -468,6 +478,13 @@ onMounted(async () => {
 .log-message {
   font-size: 14px;
   color: var(--text-regular);
+  line-height: 1.5;
+}
+
+.log-diff {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .notes-section {
@@ -505,12 +522,28 @@ onMounted(async () => {
   margin: 0 auto 12px;
 }
 
+.archive-icon {
+  font-size: 14px;
+  color: var(--color-primary);
+}
+
+.archive-text {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .report-type-tabs {
   display: flex;
   gap: 2px;
   background: var(--bg-main);
   padding: 3px;
   border-radius: var(--radius-md);
+  transition: all 0.15s;
+}
+
+.tab-btn:hover {
+  color: var(--text-primary);
 }
 
 .tab-btn {
@@ -526,6 +559,8 @@ onMounted(async () => {
 .tab-btn.active {
   background: var(--bg-panel);
   color: var(--color-primary);
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .generate-btn {
@@ -545,6 +580,16 @@ onMounted(async () => {
   gap: 8px;
 }
 
+.generate-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .view-tabs {
   display: flex;
   margin: 0 20px 12px;
@@ -560,16 +605,34 @@ onMounted(async () => {
   color: var(--text-muted);
   cursor: pointer;
   margin-right: 20px;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.view-tab:hover {
+  color: var(--text-primary);
 }
 
 .view-tab.active {
   color: var(--color-primary);
 }
 
+.view-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-primary);
+}
+
 .report-content {
   flex: 1;
   padding: 0 20px;
   min-height: 0;
+  margin-bottom: 16px;
+  height: 100%;
 }
 
 .report-editor {
@@ -583,6 +646,13 @@ onMounted(async () => {
   resize: none;
   box-sizing: border-box;
   background: var(--bg-main);
+  font-family: inherit;
+  color: var(--text-regular);
+  line-height: 1.6;
+}
+.report-editor:focus {
+  outline: none;
+  border-color: var(--color-primary);
 }
 
 .report-preview {
@@ -597,12 +667,17 @@ onMounted(async () => {
   overflow: auto;
 }
 
+.placeholder-text {
+  color: var(--text-muted);
+}
+
 .actions-bar {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
   padding: 16px 20px;
   border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .btn-secondary {
@@ -613,6 +688,12 @@ onMounted(async () => {
   color: var(--text-regular);
   font-size: 14px;
   cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-sidebar);
 }
 
 .btn-primary {
@@ -623,6 +704,18 @@ onMounted(async () => {
   color: var(--bg-panel);
   font-size: 14px;
   cursor: pointer;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 :deep(.markdown-body) code {
@@ -631,5 +724,6 @@ onMounted(async () => {
   border-radius: 3px;
   font-family: monospace;
   font-size: 13px;
+  color: var(--text-regular);
 }
 </style>

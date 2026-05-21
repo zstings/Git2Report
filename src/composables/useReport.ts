@@ -15,6 +15,7 @@ export function useReport() {
   const userNotes = ref('');
   const generatedReport = ref('');
   const dailyArchive = ref<Record<string, string>>({});
+  const selectedReportType = ref<'daily' | 'weekly' | 'monthly'>('daily');
 
   const filteredGitLogs = computed(() => {
     return gitLogs.value.filter(log => !ignoredProjectPaths.value.has(log.projectPath)).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -202,7 +203,7 @@ diff_end`;
   }
 
   function setReportType(type: 'daily' | 'weekly' | 'monthly') {
-    console.log(type, 'type');
+    selectedReportType.value = type;
     generatedReport.value = '';
   }
 
@@ -215,6 +216,7 @@ diff_end`;
     generatedReport,
     dailyArchive,
     gitLogsText,
+    selectedReportType,
     loadGitLogs,
     loadDailyArchive,
     generateDailyReport,
