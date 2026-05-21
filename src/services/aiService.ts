@@ -160,7 +160,7 @@ export class AIService {
         if (savedProfiles && Array.isArray(savedProfiles)) {
           this.profiles = savedProfiles;
           const activeProfile = this.profiles.find(p => p.isActive);
-          this.activeProfileId = activeProfile?.id || (this.profiles.length > 0 ? this.profiles[0].id : null);
+          this.activeProfileId = activeProfile?.id ?? (this.profiles.length > 0 ? (this.profiles[0]?.id ?? null) : null);
           return this.profiles;
         }
       }
@@ -169,7 +169,7 @@ export class AIService {
       const migratedProfiles = (await safeStorage.getItem('aiProfiles')) as AIProfile[];
       if (migratedProfiles && Array.isArray(migratedProfiles)) {
         this.profiles = migratedProfiles;
-        this.activeProfileId = this.profiles.length > 0 ? this.profiles[0].id : null;
+        this.activeProfileId = this.profiles.length > 0 ? (this.profiles[0]?.id ?? null) : null;
         return this.profiles;
       }
 
@@ -197,7 +197,12 @@ export class AIService {
   async updateProfile(profileId: string, updates: Partial<AIProfile>): Promise<void> {
     const index = this.profiles.findIndex(p => p.id === profileId);
     if (index !== -1) {
-      this.profiles[index] = { ...this.profiles[index], ...updates };
+      const existingProfile = this.profiles[index];
+      this.profiles[index] = {
+        ...existingProfile,
+        ...updates,
+        id: existingProfile?.id ?? '',
+      } as AIProfile;
       await this.saveProfiles(this.profiles);
     }
   }
@@ -205,7 +210,7 @@ export class AIService {
   async deleteProfile(profileId: string): Promise<void> {
     this.profiles = this.profiles.filter(p => p.id !== profileId);
     if (this.activeProfileId === profileId) {
-      this.activeProfileId = this.profiles.length > 0 ? this.profiles[0].id : null;
+      this.activeProfileId = this.profiles.length > 0 ? (this.profiles[0]?.id ?? null) : null;
       if (this.activeProfileId) {
         this.profiles = this.profiles.map(p => ({
           ...p,
