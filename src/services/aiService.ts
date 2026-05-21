@@ -64,7 +64,7 @@ export class AIService {
     try {
       const hasLegacy = await safeStorage.has('aiConfig');
       if (hasLegacy) {
-        const legacyConfig = await safeStorage.getItem('aiConfig') as LegacyConfig | null;
+        const legacyConfig = (await safeStorage.getItem('aiConfig')) as LegacyConfig | null;
         if (legacyConfig && legacyConfig.apiKey) {
           const hasNewFormat = await safeStorage.has('aiProfiles');
           if (!hasNewFormat) {
@@ -93,7 +93,7 @@ export class AIService {
     try {
       const hasProfiles = await safeStorage.has('aiProfiles');
       if (hasProfiles) {
-        const savedProfiles = await safeStorage.getItem('aiProfiles') as AIProfile[];
+        const savedProfiles = (await safeStorage.getItem('aiProfiles')) as AIProfile[];
         if (savedProfiles && Array.isArray(savedProfiles)) {
           this.profiles = savedProfiles;
           const activeProfile = this.profiles.find(p => p.isActive);
@@ -103,7 +103,7 @@ export class AIService {
       }
 
       await this.migrateLegacyConfig();
-      const migratedProfiles = await safeStorage.getItem('aiProfiles') as AIProfile[];
+      const migratedProfiles = (await safeStorage.getItem('aiProfiles')) as AIProfile[];
       if (migratedProfiles && Array.isArray(migratedProfiles)) {
         this.profiles = migratedProfiles;
         this.activeProfileId = this.profiles.length > 0 ? this.profiles[0].id : null;

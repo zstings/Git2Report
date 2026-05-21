@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 import { storage } from 'vokex.app';
-import type { GitProject } from '../services/gitService';
+import type { GitProject } from '@/projects';
 
 const STORAGE_KEY = 'git2report_projects';
 
