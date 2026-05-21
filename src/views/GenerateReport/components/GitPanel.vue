@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import DatePicker from '@/components/DatePicker.vue';
 import { storage } from 'vokex.app';
 import type { GitCommitLog } from '@/services/aiService';
@@ -16,14 +16,9 @@ function formatDate(date: Date): string {
 const selectedDate = ref(formatDate(new Date()));
 
 const gitLogs = ref<GitCommitLog[]>([]);
-const ignoredProjectPaths = ref<Set<string>>(new Set());
 const userNotes = ref('');
 const generatedReport = ref('');
 const dailyArchive = ref<Record<string, string>>({});
-
-const filteredGitLogs = computed(() => {
-  return gitLogs.value.filter(log => !ignoredProjectPaths.value.has(log.projectPath)).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-});
 
 function setDate(date: string) {
   selectedDate.value = date;
@@ -116,7 +111,7 @@ async function fetchGitLogsFromProjects(project: any[], targetDate: string): Pro
     return logs;
   };
 
-  const allLogsArrays = await Promise.all(project.map(n => fetchProjectLogs(n)));
+  const allLogsArrays = await Promise.all(project.filter(p => !p.isIgnored).map(n => fetchProjectLogs(n)));
 
   const allLogs = allLogsArrays.flat();
   console.log(`[获取提交] 总共获取到 ${allLogs.length} 条提交记录`);
@@ -197,12 +192,12 @@ onMounted(async () => {
       <span>加载中...</span>
     </div>
 
-    <div v-else-if="filteredGitLogs.length === 0" class="empty-state">
+    <div v-else-if="gitLogs.length === 0" class="empty-state">
       <p>暂无 Git 提交记录</p>
     </div>
 
     <div v-else class="git-logs-list">
-      <div v-for="(log, index) in filteredGitLogs" :key="index" class="log-item">
+      <div v-for="(log, index) in gitLogs" :key="index" class="log-item">
         <div class="log-time-marker">
           <span class="time">{{ formatTime(log.date) }}</span>
           <span class="dot"></span>
