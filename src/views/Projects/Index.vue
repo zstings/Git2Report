@@ -288,6 +288,7 @@ onMounted(async () => {
           </div>
           <div class="project-path singe-line" :title="project.localPath">{{ project.localPath }}</div>
           <div v-if="project.remoteUrl !== 'none'" class="project-remote singe-line" :title="project.remoteUrl">{{ project.remoteUrl }}</div>
+          <div v-if="project.gitUsername" class="project-git-username">用户名: {{ project.gitUsername }}</div>
         </div>
         <div class="project-actions">
           <button class="btn-edit" @click="openEditModal(project)">修改名称</button>
@@ -552,6 +553,13 @@ onMounted(async () => {
   font-size: 11px;
   color: var(--color-primary);
   font-family: monospace;
+}
+
+.project-git-username {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: monospace;
+  margin-top: 2px;
 }
 
 .project-actions {
