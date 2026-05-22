@@ -5,7 +5,6 @@ import { useConfig } from '@/composables/useConfig';
 import { useMessage } from '@/composables/useMessage';
 import { AIService } from '@/services/aiService';
 import type { GitCommitLog } from '@/services/aiService';
-import { storage } from 'vokex.app';
 
 const { success, error, warning, info } = useMessage();
 const { activeConfig, loadProfiles } = useAI();
@@ -16,7 +15,6 @@ const gitLogs = defineModel<GitCommitLog[]>('modelValue', { default: () => [] })
 const selectedDate = defineModel<string>('selectedDate', { default: '' });
 const dailyArchive = defineModel<Record<string, string>>('dailyArchive', { default: () => ({}) });
 
-const loading = ref(false);
 const isGenerating = ref(false);
 const isSaving = ref(false);
 const viewMode = ref<'preview' | 'edit'>('preview');
@@ -27,12 +25,7 @@ const selectedReportType = ref<'daily' | 'weekly' | 'monthly'>('daily');
 const gitLogsText = computed(() => {
   return gitLogs.value
     .map(log => {
-      return `项目：${log.projectName}
-时间：${log.date}
-内容：${log.content}
-diff_start
-${log.diff}
-diff_end`;
+      return `项目：${log.displayName || log.projectName}\n时间：${log.date}\n内容：${log.content}\ndiff_start\n${log.diff}\ndiff_end`;
     })
     .join('\n------------------------\n');
 });
@@ -163,7 +156,7 @@ async function handleSaveReport() {
 }
 
 function renderMarkdown(text: string | undefined): string {
-   if (!text || typeof text !== 'string') return '';
+  if (!text || typeof text !== 'string') return '';
 
   try {
     const lines = text.split('\n');
@@ -239,8 +232,8 @@ function formatInline(text: string): string {
   if (!text) return '';
   return text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // 加粗
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')             // 斜体
-    .replace(/`(.*?)`/g, '<code>$1</code>')           // 代码
+    .replace(/\*(.*?)\*/g, '<em>$1</em>') // 斜体
+    .replace(/`(.*?)`/g, '<code>$1</code>') // 代码
     .replace(/【(.*?)】/g, '<span style="color:#1890ff;font-weight:bold;">【$1】</span>'); // 针对中文括号美化
 }
 
@@ -264,11 +257,14 @@ async function initDailyArchive() {
 
 initDailyArchive();
 
-watch(() => appConfig.value.reportPath, (newPath) => {
-  if (newPath) {
-    loadDailyArchive(newPath).then(() => loadArchivedReport());
-  }
-});
+watch(
+  () => appConfig.value.reportPath,
+  newPath => {
+    if (newPath) {
+      loadDailyArchive(newPath).then(() => loadArchivedReport());
+    }
+  },
+);
 
 watch(selectedDate, () => {
   loadArchivedReport();

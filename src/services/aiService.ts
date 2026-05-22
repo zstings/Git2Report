@@ -41,6 +41,8 @@ export interface DailyArchive {
  * Git 提交日志接口
  */
 export interface GitCommitLog {
+  /** 项目显示名称 */
+  displayName: string;
   /** 项目本地路径 */
   projectPath: string;
   /** 项目显示名称 */
@@ -250,6 +252,8 @@ export class AIService {
     const systemPrompt = todaySystemPrompt(config);
 
     const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || '无'}`;
+    console.log(userPrompt, 'userPrompt');
+    alert(userPrompt);
 
     try {
       const response = await http.fetch(`${config.baseUrl}/chat/completions`, {

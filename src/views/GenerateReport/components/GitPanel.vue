@@ -85,6 +85,7 @@ async function fetchGitLogsFromProjects(project: any[], targetDate: string): Pro
       }
 
       logs.push({
+        displayName: item.displayName,
         projectPath: normalizedPath,
         projectName,
         hash,
