@@ -152,11 +152,9 @@ async function handleGenerateReport() {
     isGenerating.value = true;
     generatedReport.value = '';
     try {
-      await aiService.generateSummaryReport(
-        selectedReportType.value,
-        dailyContent,
-        chunk => { generatedReport.value += chunk; },
-      );
+      await aiService.generateSummaryReport(selectedReportType.value, dailyContent, chunk => {
+        generatedReport.value += chunk;
+      });
     } catch (err) {
       error(`生成失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -674,5 +672,7 @@ const emit = defineEmits<{
 :deep(.markdown-body) .md-bracket {
   color: #1890ff;
   font-weight: bold;
+  margin-bottom: 3px;
+  display: block;
 }
 </style>
