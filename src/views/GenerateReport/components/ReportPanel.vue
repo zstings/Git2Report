@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useAI } from '@/composables/useAI';
 import { useConfig } from '@/composables/useConfig';
 import { useMessage } from '@/composables/useMessage';
@@ -9,7 +9,7 @@ import { storage } from 'vokex.app';
 
 const { success, error, warning, info } = useMessage();
 const { activeConfig } = useAI();
-const { config: appConfig } = useConfig();
+const { config: appConfig, loadConfig: loadAppConfig } = useConfig();
 const aiService = AIService.getInstance();
 
 const gitLogs = defineModel<GitCommitLog[]>('modelValue', { default: () => [] });
@@ -245,19 +245,32 @@ function formatInline(text: string): string {
     .replace(/【(.*?)】/g, '<span style="color:#1890ff;font-weight:bold;">【$1】</span>'); // 针对中文括号美化
 }
 
-onMounted(async () => {
-  await loadDailyArchive(appConfig.value.reportPath);
-  if (dailyArchive.value[selectedDate.value]) {
-    generatedReport.value = dailyArchive.value[selectedDate.value];
-  }
-});
-
-watch(selectedDate, () => {
+function loadArchivedReport() {
   if (dailyArchive.value[selectedDate.value]) {
     generatedReport.value = dailyArchive.value[selectedDate.value];
   } else {
     generatedReport.value = '';
   }
+}
+
+async function initDailyArchive() {
+  await loadAppConfig();
+  const reportPath = appConfig.value.reportPath;
+  if (!reportPath) return;
+  await loadDailyArchive(reportPath);
+  loadArchivedReport();
+}
+
+initDailyArchive();
+
+watch(() => appConfig.value.reportPath, (newPath) => {
+  if (newPath) {
+    loadDailyArchive(newPath).then(() => loadArchivedReport());
+  }
+});
+
+watch(selectedDate, () => {
+  loadArchivedReport();
 });
 
 const emit = defineEmits<{

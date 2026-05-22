@@ -1,7 +1,6 @@
  <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useAI } from '@/composables/useAI';
-import { useConfig } from '@/composables/useConfig';
 import { useProjects } from '@/composables/useProjects';
 import AIConfigModal from '@/views/GenerateReport/components/AIConfigModal.vue';
 import GitPanel from '@/views/GenerateReport/components/GitPanel.vue';
@@ -14,13 +13,12 @@ const gitLogs = ref<GitCommitLog[]>([]);
 const dailyArchive = ref<Record<string, string>>({});
 
 const { loadProfiles } = useAI();
-const { loadConfig: loadAppConfig } = useConfig();
 const { loadProjects } = useProjects();
 
 const showAIConfig = ref(false);
 
 onMounted(async () => {
-  await Promise.all([loadProfiles(), loadAppConfig()]);
+  await loadProfiles();
   await loadProjects();
 });
 </script>
