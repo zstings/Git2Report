@@ -1,5 +1,5 @@
 import { http, safeStorage, fs, path } from 'vokex.app';
-import { todaySystemPrompt } from '../utils';
+import { todaySystemPrompt, weeklySystemPrompt, monthlySystemPrompt } from '../utils';
 
 /**
  * AI 配置接口
@@ -291,6 +291,59 @@ export class AIService {
       }
     } catch (error) {
       console.error('生成日报失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 生成周报/月报（基于已有日报汇总）
+   * @param reportType - 报告类型：'weekly' 或 'monthly'
+   * @param dailyContent - 拼接好的多天日报内容
+   * @param onChunk - 流式回调函数
+   * @returns 生成的报告内容
+   */
+  async generateSummaryReport(reportType: 'weekly' | 'monthly', dailyContent: string, onChunk?: (chunk: string) => void): Promise<string> {
+    const config = this.getActiveConfig();
+    if (!config) {
+      throw new Error('请先配置 AI 服务');
+    }
+
+    const systemPrompt = reportType === 'weekly' ? weeklySystemPrompt(config) : monthlySystemPrompt(config);
+    const typeLabel = reportType === 'weekly' ? '周' : '月';
+    const userPrompt = `以下是各天的${typeLabel}报内容：\n${dailyContent}`;
+
+    try {
+      const response = await http.fetch(`${config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        body: {
+          model: config.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+          stream: !!onChunk,
+        },
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+        },
+        stream: !!onChunk,
+        timeout: 300,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
+      }
+
+      if (onChunk) {
+        return this.parseSSEStream(response, onChunk);
+      } else {
+        const data = await response.json();
+        return data.choices[0].message.content;
+      }
+    } catch (error) {
+      console.error(`生成${typeLabel}报失败:`, error);
       throw error;
     }
   }

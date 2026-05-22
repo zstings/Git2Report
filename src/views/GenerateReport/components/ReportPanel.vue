@@ -5,6 +5,7 @@ import { useConfig } from '@/composables/useConfig';
 import { useMessage } from '@/composables/useMessage';
 import { AIService } from '@/services/aiService';
 import type { GitCommitLog } from '@/services/aiService';
+import { formatDate } from '@/utils';
 
 const { success, error, warning, info } = useMessage();
 const { activeConfig, loadProfiles } = useAI();
@@ -33,6 +34,49 @@ const gitLogsText = computed(() => {
 function setReportType(type: 'daily' | 'weekly' | 'monthly') {
   selectedReportType.value = type;
   generatedReport.value = '';
+}
+
+// 获取日期范围内的所有日期（含起止）
+function getDateRange(startDate: Date, endDate: Date): string[] {
+  const dates: string[] = [];
+  const current = new Date(startDate);
+  while (current <= endDate) {
+    dates.push(formatDate(current));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
+// 根据 selectedDate 和报告类型计算日期范围
+function getReportDateRange(): string[] {
+  const current = new Date(selectedDate.value);
+  if (selectedReportType.value === 'weekly') {
+    // 周一~周日
+    const day = current.getDay();
+    const monday = new Date(current);
+    monday.setDate(current.getDate() - (day === 0 ? 6 : day - 1));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return getDateRange(monday, sunday);
+  } else if (selectedReportType.value === 'monthly') {
+    // 月初~月末
+    const firstDay = new Date(current.getFullYear(), current.getMonth(), 1);
+    const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+    return getDateRange(firstDay, lastDay);
+  }
+  return [selectedDate.value];
+}
+
+// 从 dailyArchive 中按日期范围拼接日报内容
+function collectDailyContent(dates: string[]): string {
+  const parts: string[] = [];
+  for (const date of dates) {
+    const content = dailyArchive.value[date];
+    if (content) {
+      parts.push(`【${date}】\n${content}`);
+    }
+  }
+  return parts.join('\n\n------------------------------------------\n\n');
 }
 
 async function generateDailyReport(onChunk?: (chunk: string) => void) {
@@ -91,6 +135,33 @@ async function handleGenerateReport() {
     return;
   }
 
+  // 周报/月报：基于已有日报汇总
+  if (selectedReportType.value === 'weekly' || selectedReportType.value === 'monthly') {
+    const dates = getReportDateRange();
+    const dailyContent = collectDailyContent(dates);
+    if (!dailyContent) {
+      const typeLabel = selectedReportType.value === 'weekly' ? '周' : '月';
+      warning(`所选${typeLabel}期内没有日报存档，请先逐日生成并保存日报`);
+      return;
+    }
+
+    isGenerating.value = true;
+    generatedReport.value = '';
+    try {
+      await aiService.generateSummaryReport(
+        selectedReportType.value,
+        dailyContent,
+        chunk => { generatedReport.value += chunk; },
+      );
+    } catch (err) {
+      error(`生成失败: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      isGenerating.value = false;
+    }
+    return;
+  }
+
+  // 日报：基于 git 提交记录生成
   if (gitLogs.value.length === 0 && !userNotes.value.trim()) {
     info('当日没有 Git 提交记录');
     return;
@@ -149,6 +220,11 @@ async function handleCopyReport() {
 }
 
 async function handleSaveReport() {
+  if (selectedReportType.value !== 'daily') {
+    info('周报/月报无需存档，可随时从日报重新生成');
+    return;
+  }
+
   if (!appConfig.value.reportPath) {
     warning('请先在系统设置页面设置报告存放目录');
     return;
@@ -316,7 +392,7 @@ const emit = defineEmits<{
 
     <div v-if="generatedReport" class="actions-bar">
       <button class="btn-secondary" @click="handleCopyReport">一键复制</button>
-      <button class="btn-primary" @click="handleSaveReport" :disabled="isSaving">
+      <button v-if="selectedReportType === 'daily'" class="btn-primary" @click="handleSaveReport" :disabled="isSaving">
         {{ isSaving ? '保存中...' : '确认存档' }}
       </button>
     </div>
