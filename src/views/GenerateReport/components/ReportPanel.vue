@@ -376,11 +376,11 @@ const emit = defineEmits<{
         <button class="tab-btn" @click="setReportType('daily')" :class="{ active: selectedReportType === 'daily' }">日报</button>
         <button class="tab-btn" @click="setReportType('weekly')" :class="{ active: selectedReportType === 'weekly' }">周报</button>
         <button class="tab-btn" @click="setReportType('monthly')" :class="{ active: selectedReportType === 'monthly' }">月报</button>
-        <label v-if="selectedReportType === 'daily'" class="detail-toggle">
-          <input type="checkbox" v-model="enableDetailPoints" />
-          <span>详细要点</span>
-        </label>
       </div>
+      <label v-if="selectedReportType === 'daily'" class="detail-toggle">
+        <input type="checkbox" v-model="enableDetailPoints" />
+        <span>详细要点</span>
+      </label>
       <button class="btn-icon" @click="emit('showAIConfig')" title="AI 配置">⚙️</button>
     </div>
 
@@ -423,7 +423,7 @@ const emit = defineEmits<{
 
 .panel-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   padding: 16px 20px;
   border-bottom: 1px solid var(--color-border);
@@ -440,6 +440,7 @@ const emit = defineEmits<{
   cursor: pointer;
   color: var(--text-muted);
   transition: all 0.15s;
+  margin-left: auto;
 }
 
 .btn-icon:hover {
