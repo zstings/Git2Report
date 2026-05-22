@@ -75,7 +75,6 @@ async function loadDailyArchive(reportPath: string) {
     console.error('加载日报存档失败:', err);
     dailyArchive.value = {};
   }
-  // dailyArchive.value = {};
 }
 
 async function saveDailyReport(reportPath: string) {
@@ -256,6 +255,7 @@ function loadArchivedReport() {
 async function initDailyArchive() {
   await loadAppConfig();
   const reportPath = appConfig.value.reportPath;
+  console.log(reportPath);
   if (!reportPath) return;
   await loadDailyArchive(reportPath);
   loadArchivedReport();

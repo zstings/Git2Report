@@ -1,6 +1,5 @@
  <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useAI } from '@/composables/useAI';
+import { ref } from 'vue';
 import AIConfigModal from '@/views/GenerateReport/components/AIConfigModal.vue';
 import GitPanel from '@/views/GenerateReport/components/GitPanel.vue';
 import ReportPanel from '@/views/GenerateReport/components/ReportPanel.vue';
@@ -11,13 +10,7 @@ const selectedDate = ref(formatDate(new Date()));
 const gitLogs = ref<GitCommitLog[]>([]);
 const dailyArchive = ref<Record<string, string>>({});
 
-const { loadProfiles } = useAI();
-
 const showAIConfig = ref(false);
-
-onMounted(async () => {
-  await loadProfiles();
-});
 </script>
 
 <template>
