@@ -240,16 +240,20 @@ export class AIService {
    * 生成日报
    * @param gitLogs - Git 提交日志
    * @param userNotes - 用户补充内容
+   * @param enableDetailPoints - 是否启用详细要点
    * @param onChunk - 流式回调函数
    * @returns 生成的日报内容
    */
-  async generateDailyReport(gitLogs: string, userNotes: string, onChunk?: (chunk: string) => void): Promise<string> {
+  async generateDailyReport(gitLogs: string, userNotes: string, enableDetailPoints: boolean, onChunk?: (chunk: string) => void): Promise<string> {
     const config = this.getActiveConfig();
     if (!config) {
       throw new Error('请先配置 AI 服务');
     }
 
-    const systemPrompt = todaySystemPrompt(config);
+    let systemPrompt = todaySystemPrompt(config);
+    if (enableDetailPoints) {
+      systemPrompt += `\n# 详细要点规则\n每项工作须在分类事项后用子列表列出具体改动点，说明带来的收益或目的。格式如下：\n  - **详细要点**：\n    1. 具体的改动点 A（说明带来的收益或目的）\n    2. 具体的改动点 B`;
+    }
 
     const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || '无'}`;
 

@@ -22,6 +22,8 @@ const viewMode = ref<'preview' | 'edit'>('preview');
 const generatedReport = ref('');
 const userNotes = ref('');
 const selectedReportType = ref<'daily' | 'weekly' | 'monthly'>('daily');
+const enableDetailPoints = ref(localStorage.getItem('enableDetailPoints') === 'true');
+watch(enableDetailPoints, v => localStorage.setItem('enableDetailPoints', String(v)));
 
 const gitLogsText = computed(() => {
   return gitLogs.value
@@ -92,7 +94,7 @@ async function generateDailyReport(onChunk?: (chunk: string) => void) {
     if (onChunk) {
       generatedReport.value = '';
     }
-    const report = await aiService.generateDailyReport(gitLogsText.value, userNotes.value, chunk => {
+    const report = await aiService.generateDailyReport(gitLogsText.value, userNotes.value, enableDetailPoints.value, chunk => {
       if (onChunk) {
         onChunk(chunk);
       } else {
@@ -285,15 +287,19 @@ function renderMarkdown(text: string | undefined): string {
 
       // 3. 处理列表 (支持多级缩进)
       const listMatch = line.match(/^(\s*)([-*])\s+(.*)$/);
-      if (listMatch) {
-        const indent = listMatch[1]?.length || 0;
-        const content = formatInline(listMatch[3] || '');
+      const orderedMatch = !listMatch ? line.match(/^(\s*)(\d+)\.\s+(.*)$/) : null;
+      const match = listMatch || orderedMatch;
+      if (match) {
+        const indent = match[1]?.length || 0;
+        const content = formatInline(match[3] || '');
 
-        // 简单的层级判定：根据空格长度划分（0-1格为L1，2格以上为L2）
-        const currentLevel = indent === 0 ? 1 : 2;
+        const currentLevel = indent < 2 ? 1 : indent < 4 ? 2 : 3;
+        const isOrdered = !!orderedMatch;
+        const tag = isOrdered ? 'ol' : 'ul';
+        const listClass = isOrdered ? 'md-olist' : 'md-list';
 
         if (currentLevel > listStack.length) {
-          html += '<ul class="md-list">';
+          html += `<${tag} class="${listClass}">`;
           listStack.push(currentLevel);
         } else if (currentLevel < listStack.length) {
           closeLists(currentLevel);
@@ -370,6 +376,10 @@ const emit = defineEmits<{
         <button class="tab-btn" @click="setReportType('daily')" :class="{ active: selectedReportType === 'daily' }">日报</button>
         <button class="tab-btn" @click="setReportType('weekly')" :class="{ active: selectedReportType === 'weekly' }">周报</button>
         <button class="tab-btn" @click="setReportType('monthly')" :class="{ active: selectedReportType === 'monthly' }">月报</button>
+        <label v-if="selectedReportType === 'daily'" class="detail-toggle">
+          <input type="checkbox" v-model="enableDetailPoints" />
+          <span>详细要点</span>
+        </label>
       </div>
       <button class="btn-icon" @click="emit('showAIConfig')" title="AI 配置">⚙️</button>
     </div>
@@ -485,6 +495,22 @@ const emit = defineEmits<{
   color: var(--color-primary);
   transition: all 0.2s;
   flex-shrink: 0;
+}
+
+.detail-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: 8px;
+  user-select: none;
+}
+
+.detail-toggle input {
+  margin: 0;
+  cursor: pointer;
 }
 
 .generate-btn {
@@ -666,6 +692,11 @@ const emit = defineEmits<{
 
 :deep(.markdown-body) .md-list {
   list-style-type: disc;
+  padding-left: 20px;
+}
+
+:deep(.markdown-body) .md-olist {
+  list-style-type: decimal;
   padding-left: 20px;
 }
 
