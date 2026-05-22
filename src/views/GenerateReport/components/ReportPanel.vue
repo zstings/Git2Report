@@ -8,7 +8,7 @@ import type { GitCommitLog } from '@/services/aiService';
 import { storage } from 'vokex.app';
 
 const { success, error, warning, info } = useMessage();
-const { activeConfig } = useAI();
+const { activeConfig, loadProfiles } = useAI();
 const { config: appConfig, loadConfig: loadAppConfig } = useConfig();
 const aiService = AIService.getInstance();
 
@@ -253,6 +253,7 @@ function loadArchivedReport() {
 }
 
 async function initDailyArchive() {
+  loadProfiles();
   await loadAppConfig();
   const reportPath = appConfig.value.reportPath;
   console.log(reportPath);
