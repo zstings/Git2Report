@@ -395,6 +395,7 @@ const emit = defineEmits<{
     </div>
 
     <div v-if="generatedReport" class="actions-bar">
+      <span v-if="selectedReportType === 'daily' && dailyArchive[selectedDate]" class="archive-hint">✓ 已存档</span>
       <button class="btn-secondary" @click="handleCopyReport">一键复制</button>
       <button v-if="selectedReportType === 'daily'" class="btn-primary" @click="handleSaveReport" :disabled="isSaving">
         {{ isSaving ? '保存中...' : '确认存档' }}
@@ -599,10 +600,17 @@ const emit = defineEmits<{
 .actions-bar {
   display: flex;
   gap: 12px;
+  align-items: center;
   justify-content: flex-end;
   padding: 16px 20px;
   border-top: 1px solid var(--color-border);
   flex-shrink: 0;
+}
+
+.archive-hint {
+  font-size: 12px;
+  color: var(--color-primary);
+  margin-right: auto;
 }
 
 .btn-secondary {

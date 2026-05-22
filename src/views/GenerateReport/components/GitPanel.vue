@@ -12,12 +12,7 @@ const loading = ref(false);
 const selectedDate = defineModel<string>('selectedDate', { default: '' });
 
 const gitLogs = defineModel<GitCommitLog[]>('modelValue', { default: () => [] });
-const dailyArchive = defineModel<Record<string, string>>('dailyArchive', { default: () => ({}) });
 const userNotes = ref('');
-
-function hasArchivedReport(date: string): boolean {
-  return !!dailyArchive.value[date];
-}
 
 async function fetchGitLogsFromProjects(project: any[], targetDate: string): Promise<GitCommitLog[]> {
   const { shell } = await import('vokex.app');
@@ -209,11 +204,6 @@ onMounted(async () => {
       <label class="notes-label">今日工作补充</label>
       <textarea v-model="userNotes" class="notes-textarea" placeholder="记录非代码工作..." />
     </div>
-
-    <div v-if="hasArchivedReport(selectedDate)" class="archive-badge">
-      <span class="archive-icon">✓</span>
-      <span class="archive-text">该日期已有存档报告</span>
-    </div>
   </div>
 </template>
 
@@ -268,6 +258,7 @@ onMounted(async () => {
   padding: 60px 20px;
   gap: 12px;
   color: var(--text-muted);
+  flex: 1;
 }
 
 .spinner {
@@ -289,6 +280,10 @@ onMounted(async () => {
   text-align: center;
   padding: 60px 20px;
   color: var(--text-muted);
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .git-logs-list {
@@ -379,27 +374,5 @@ onMounted(async () => {
   box-sizing: border-box;
   resize: vertical;
   background: var(--bg-main);
-}
-
-.archive-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: rgba(37, 99, 235, 0.04);
-  border-radius: 20px;
-  margin: 0 auto 12px;
-}
-
-.archive-icon {
-  font-size: 14px;
-  color: var(--color-primary);
-}
-
-.archive-text {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
 }
 </style>
