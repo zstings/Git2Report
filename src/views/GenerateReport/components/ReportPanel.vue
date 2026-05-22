@@ -33,7 +33,11 @@ const gitLogsText = computed(() => {
 
 function setReportType(type: 'daily' | 'weekly' | 'monthly') {
   selectedReportType.value = type;
-  generatedReport.value = '';
+  if (type === 'daily') {
+    loadArchivedReport();
+  } else {
+    generatedReport.value = '';
+  }
 }
 
 // 获取日期范围内的所有日期（含起止）
