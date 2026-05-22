@@ -32,11 +32,11 @@ function parseVersion(v: string): number {
   return Number(parts.join(''));
 }
 
-async function checkFromGitHubRaw(): Promise<Release | null> {
+async function checkFromGitHubRaw(isAuto: boolean): Promise<Release | null> {
   try {
     const response = await http.fetch(CONFIG.githubRawUrl, {
       method: 'GET',
-      timeout: 20,
+      timeout: isAuto ? 5 : 20,
     });
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status}`);
@@ -52,11 +52,11 @@ async function checkFromGitHubRaw(): Promise<Release | null> {
   }
 }
 
-async function checkForUpdates(): Promise<boolean> {
+async function checkForUpdates(isAuto: boolean): Promise<boolean> {
   if (latestVersion.value) return false;
   isChecking.value = true;
   try {
-    const release = await checkFromGitHubRaw();
+    const release = await checkFromGitHubRaw(isAuto);
     if (!release) {
       throw new Error('检查更新失败');
     }
@@ -136,7 +136,6 @@ async function applyUpdate(): Promise<void> {
     const appPath = await app.getAppPath();
     const appName = await app.getName();
     const currentExePath = await path.join(appPath, appName + '.exe');
-    alert(currentExePath);
 
     // 用 spawn 启动 PowerShell 后台进程，不 await 等待完成
     // 等旧进程退出 → 复制覆盖 → 启动新版本
@@ -151,9 +150,9 @@ async function applyUpdate(): Promise<void> {
 }
 
 async function handleManualCheck(isAuto: boolean = false) {
-  const found = await checkForUpdates();
+  const found = await checkForUpdates(isAuto);
   if (found) {
-    showUpdateModal.value = true;
+    if (!isAuto) showUpdateModal.value = true;
   } else {
     if (isAuto) return;
     info('当前已是最新版本 v' + version);
@@ -175,7 +174,7 @@ onMounted(async () => {
 
 <template>
   <button v-if="isUpdateReady" class="update-check-btn update-ready" @click="applyUpdate">
-    <span>🔄 重启更新</span>
+    <span>重启更新</span>
   </button>
   <button v-else-if="hasUpdate" class="update-check-btn" @click="() => (showUpdateModal = true)" :disabled="isChecking">
     <span>✨ 发现新版本</span>
