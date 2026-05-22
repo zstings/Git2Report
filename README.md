@@ -1,13 +1,12 @@
 # Git2Report
 
-智能 Git 工作报告生成器 —— 通过 Git 全局钩子自动记录提交，结合 AI 智能生成日报、周报、月报。
+智能 Git 工作报告生成器 —— 实时从 Git 仓库抓取提交记录，结合 AI 智能生成日报、周报、月报。
 
 ## 核心功能
 
 ### 自动化 Git 提交记录
 
-- 通过 Git 全局 `post-commit` 钩子，自动记录所有项目的提交信息
-- 智能判断提交意义：有意义的提交（信息 ≥ 15 字符）仅记录摘要，无意义的提交自动捕获完整 diff
+- 实时从 Git 仓库抓取提交记录，无需初始化全局钩子
 - 支持多项目统一管理，所有记录存储在报告目录
 
 ### AI 智能生成报告
@@ -15,19 +14,12 @@
 - 兼容 OpenAI API 接口（GPT、Claude、DeepSeek 等）
 - SSE 流式响应，边生成边显示
 - 日报：基于 Git 提交日志 + 用户补充内容生成结构化工作日报
+- 日报「详细要点」开关：开启后 AI 输出每项工作的具体改动点及收益说明
 - 周报/月报：基于存档日报智能整合，按核心业务、系统架构等大类成果导向输出
-
-### 智能清理机制
-
-- 仅在查看当天记录时自动触发清理
-- 通过 `git branch --contains` 验证 hash 是否仍在分支历史中
-- 已撤回或 amend 的提交自动从日志中移除
-- 非当日历史记录不受影响
 
 ### 灵活的工作记录
 
 - 支持补充非代码工作内容（会议、文档、线上排查等）
-- 手动补全提交记录：选择项目目录 + 目标日期，补录未捕获的历史提交
 - Markdown 实时预览/编辑切换
 - 一键复制到剪贴板，存档管理
 
@@ -45,21 +37,32 @@ git2report/
 │   ├── main.ts                        # 应用入口
 │   ├── App.vue                        # 根组件（侧边栏导航 + 深色模式）
 │   ├── utils.ts                       # AI Prompt 模板
-│   ├── components/                    # 页面组件
-│   │   ├── InitHooksPage.vue          # 初始化钩子页面
-│   │   ├── ProjectsPage.vue           # 项目管理页面
-│   │   └── GenerateReportPage.vue     # 报告生成页面（核心）
+│   ├── components/                    # 通用 UI 组件
+│   │   ├── AppButton.vue
+│   │   ├── AppDialog.vue
+│   │   ├── AppInput.vue
+│   │   ├── AppTextarea.vue
+│   │   ├── AppUpdate.vue
+│   │   ├── DatePicker.vue
+│   │   └── Message.vue
+│   ├── views/                         # 页面视图
+│   │   ├── InitHooks/                 # 系统设置页面
+│   │   ├── Projects/                  # 项目管理页面
+│   │   └── GenerateReport/            # 报告生成页面（核心）
+│   │       └── components/
+│   │           ├── GitPanel.vue
+│   │           ├── AIConfigModal.vue
+│   │           └── ReportPanel.vue
 │   ├── composables/                   # Vue Composables
 │   │   ├── useConfig.ts               # 全局配置管理
 │   │   ├── useGit.ts                  # Git 操作封装
 │   │   ├── useAI.ts                   # AI 配置管理（加密存储）
 │   │   ├── useProjects.ts             # 项目列表管理
-│   │   ├── useReport.ts               # 报告生成核心逻辑
+│   │   ├── useMessage.ts              # 全局消息提示
 │   │   └── useDarkMode.ts             # 深色模式切换
 │   └── services/                      # 核心服务层
-│       ├── gitService.ts              # Git 服务（钩子初始化、项目扫描）
-│       ├── aiService.ts               # AI 服务（报告生成、存档、日志解析）
-│       └── git_commit_history.ts      # Bash post-commit 钩子脚本模板
+│       ├── gitService.ts              # Git 服务（项目扫描）
+│       └── aiService.ts               # AI 服务（报告生成、存档）
 ├── public/
 │   ├── icon.ico                       # 应用图标
 │   ├── icon.png
@@ -89,33 +92,17 @@ git2report/
 
 首次使用需设置报告存放目录：
 
-1. 在「初始化配置」页面选择报告存放目录（建议创建专用文件夹）
-2. 点击「初始化 Git 钩子」完成设置
+1. 在「系统设置」页面选择报告存放目录（建议创建专用文件夹）
 
-初始化过程会自动：
-
-- 创建 `~/.config/git/hooks` 目录
-- 设置 Git 全局 `core.hooksPath`
-- 生成 `post-commit` 钩子脚本
-
-### 2. 自动记录提交
-
-完成初始化后，在任意 Git 项目中执行 `git commit` 时：
-
-- 钩子脚本自动提取提交信息（hash、时间、主题、描述）
-- 智能判断提交意义：
-  - **有意义提交**（信息 ≥ 15 字符）：仅记录摘要，标记 `[已忽略]`
-  - **无意义提交**（信息 < 15 字符）：自动捕获完整 diff
-- 所有记录追加到报告目录的 `original/` 子目录
-
-### 3. 生成工作报告
+### 2. 生成工作报告
 
 #### 日报生成
 
 1. 在左侧面板选择日期，查看 Git 提交记录
 2. 可补充非代码工作内容
-3. 点击「AI 一键生成」，等待流式生成完成
-4. 预览/编辑报告，一键复制或确认存档
+3. 可勾选「详细要点」开关，让 AI 输出每项工作的具体改动点
+4. 点击「AI 一键生成」，等待流式生成完成
+5. 预览/编辑报告，一键复制或确认存档
 
 #### 周报/月报生成
 
@@ -123,16 +110,7 @@ git2report/
 2. 系统自动汇总期间所有存档的日报
 3. AI 智能整合生成周期报告（按成果导向分类，非机械拼接）
 
-### 4. 手动补全提交
-
-适用于钩子未生效或需要补录历史提交的场景：
-
-1. 点击「手动补全」按钮
-2. 选择项目目录和目标日期
-3. 系统通过 `git log --all --no-merges` 获取提交
-4. 自动去重后追加到日志文件
-
-### 5. AI 配置
+### 3. AI 配置
 
 点击右上角设置按钮配置 AI 服务：
 
