@@ -239,7 +239,7 @@ function formatInline(text: string): string {
 
 function loadArchivedReport() {
   if (dailyArchive.value[selectedDate.value]) {
-    generatedReport.value = dailyArchive.value[selectedDate.value];
+    generatedReport.value = dailyArchive.value[selectedDate.value] ?? '';
   } else {
     generatedReport.value = '';
   }
