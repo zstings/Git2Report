@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { version } from '../../package.json';
-import { http, shell } from 'vokex.app';
+import { http, shell, fs, path, app } from 'vokex.app';
 import { useMessage } from '@/composables/useMessage';
-const {  info } = useMessage();
+const { info, error, success } = useMessage();
 
 interface Release {
   tag_name: string;
@@ -12,12 +12,15 @@ interface Release {
 }
 
 const CONFIG = {
-  githubRawUrl: 'https://raw.githubusercontent.com/zstings/Git2Report/refs/heads/main/package.json'
+  githubRawUrl: 'https://raw.githubusercontent.com/zstings/Git2Report/refs/heads/main/package.json',
+  releaseDownloadUrl: 'https://github.com/zstings/Git2Report/releases/download',
 };
 
 const showUpdateModal = ref(false);
 const isChecking = ref(false);
 const hasUpdate = ref(false);
+const isDownloading = ref(false);
+const isUpdateReady = ref(false);
 const latestVersion = ref('');
 const releaseNotes = ref('');
 
@@ -50,7 +53,7 @@ async function checkFromGitHubRaw(): Promise<Release | null> {
 }
 
 async function checkForUpdates(): Promise<boolean> {
-  if(latestVersion.value) return false;
+  if (latestVersion.value) return false;
   isChecking.value = true;
   try {
     const release = await checkFromGitHubRaw();
@@ -65,32 +68,104 @@ async function checkForUpdates(): Promise<boolean> {
 
     hasUpdate.value = latest > current;
 
+    // 检查是否已下载过
+    if (hasUpdate.value) {
+      const tempDir = await app.getPath('temp');
+      const downloadedPath = await path.join(tempDir, `git2report_v${release.tag_name}.exe`);
+      const exists = await fs.exists(downloadedPath);
+      if (exists) {
+        isUpdateReady.value = true;
+      }
+    }
+
     return hasUpdate.value;
-  } catch (error) {
-    console.log('检查更新出错:', error);
+  } catch (err) {
+    console.log('检查更新出错:', err);
     return false;
   } finally {
     isChecking.value = false;
   }
 }
 
-async function openDownloadPage() {
-  await shell.openExternal('https://github.com/zstings/Git2Report/releases/tag/v' + latestVersion.value);
+async function downloadUpdate(): Promise<boolean> {
+  isDownloading.value = true;
+  try {
+    const tempDir = await app.getPath('temp');
+    const downloadUrl = `${CONFIG.releaseDownloadUrl}/${latestVersion.value}/Git2Report.exe`;
+    const savePath = await path.join(tempDir, `git2report_v${latestVersion.value}.exe`);
+
+    // 用 PowerShell 下载，自动处理 GitHub 302 重定向
+    const psCmd = `Invoke-WebRequest -Uri "${downloadUrl}" -OutFile "${savePath}" -UseBasicParsing`;
+    const result = await shell.exec('powershell', ['-NoProfile', '-Command', psCmd]);
+
+    if (!result.success) {
+      throw new Error(`下载失败: ${result.stderr || '未知错误'}`);
+    }
+
+    // 校验文件大小
+    const stat = await fs.stat(savePath);
+    if (!stat.isFile || stat.size === 0) {
+      await fs.rm(savePath, { force: true });
+      throw new Error('下载文件无效（0字节）');
+    }
+
+    isUpdateReady.value = true;
+    success('更新已下载完成，点击"重启更新"完成安装');
+    return true;
+  } catch (err) {
+    error(`下载更新失败: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  } finally {
+    isDownloading.value = false;
+  }
+}
+
+async function applyUpdate(): Promise<void> {
+  try {
+    const tempDir = await app.getPath('temp');
+    const newExePath = await path.join(tempDir, `git2report_v${latestVersion.value}.exe`);
+
+    // 检查下载的文件是否存在
+    const exists = await fs.exists(newExePath);
+    if (!exists) {
+      error('更新文件不存在，请重新下载');
+      return;
+    }
+
+    // 获取当前 exe 路径
+    const appPath = await app.getAppPath();
+    const appName = await app.getName();
+    const currentExePath = await path.join(appPath, appName + '.exe');
+    alert(currentExePath);
+
+    // 用 spawn 启动 PowerShell 后台进程，不 await 等待完成
+    // 等旧进程退出 → 复制覆盖 → 启动新版本
+    const psCmd = `Start-Sleep -Seconds 2; Copy-Item -Path '${newExePath}' -Destination '${currentExePath}' -Force; Start-Process '${currentExePath}'`;
+    await shell.spawn('powershell', ['-WindowStyle', 'Hidden', '-Command', psCmd]);
+
+    // 立即退出当前应用，释放文件锁，PowerShell 会等 2 秒后复制覆盖
+    await app.quit();
+  } catch (err) {
+    error(`更新失败: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 async function handleManualCheck(isAuto: boolean = false) {
-  const hasUpdate = await checkForUpdates();
-  if (hasUpdate) {
+  const found = await checkForUpdates();
+  if (found) {
     showUpdateModal.value = true;
   } else {
-    if(isAuto) return;
+    if (isAuto) return;
     info('当前已是最新版本 v' + version);
   }
 }
 
 async function handleUpdate() {
-  await openDownloadPage();
-  showUpdateModal.value = false;
+  if (isUpdateReady.value) {
+    await applyUpdate();
+  } else {
+    await downloadUpdate();
+  }
 }
 
 onMounted(async () => {
@@ -99,7 +174,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <button v-if="hasUpdate" class="update-check-btn" @click="() => showUpdateModal = true" :disabled="isChecking">
+  <button v-if="isUpdateReady" class="update-check-btn update-ready" @click="applyUpdate">
+    <span>🔄 重启更新</span>
+  </button>
+  <button v-else-if="hasUpdate" class="update-check-btn" @click="() => (showUpdateModal = true)" :disabled="isChecking">
     <span>✨ 发现新版本</span>
   </button>
   <button v-else class="update-check-btn" @click="handleManualCheck()" :disabled="isChecking">
@@ -125,7 +203,11 @@ onMounted(async () => {
         </div>
         <div class="modal-footer">
           <button class="btn-cancel" @click="showUpdateModal = false">稍后</button>
-          <button class="btn-update" @click="handleUpdate">前往下载</button>
+          <button class="btn-update" @click="handleUpdate" :disabled="isDownloading">
+            <span v-if="isDownloading">下载中...</span>
+            <span v-else-if="isUpdateReady">重启更新</span>
+            <span v-else>立即更新</span>
+          </button>
         </div>
       </div>
     </div>
@@ -155,6 +237,12 @@ onMounted(async () => {
 .update-check-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.update-check-btn.update-ready {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
 }
 
 .modal-overlay {
