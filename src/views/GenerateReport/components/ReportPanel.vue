@@ -130,6 +130,16 @@ async function handleCopyReport() {
   if (!dom) return;
   const docx = dom.cloneNode(true) as HTMLElement;
   docx.style.backgroundColor = 'white';
+  // 复制时将 CSS class 转为内联样式，确保粘贴到 Word 等外部应用时样式保留
+  docx.querySelectorAll('.md-hr').forEach(el => {
+    (el as HTMLElement).style.cssText = 'border:none;border-top:1px solid #e6e5e6;margin:10px 0;';
+  });
+  docx.querySelectorAll('.md-list').forEach(el => {
+    (el as HTMLElement).style.cssText = 'list-style-type:disc;padding-left:20px;';
+  });
+  docx.querySelectorAll('.md-bracket').forEach(el => {
+    (el as HTMLElement).style.cssText = 'color:#1890ff;font-weight:bold;';
+  });
   dom.appendChild(docx);
   selectElementText(docx);
   document.execCommand('copy');
@@ -191,7 +201,7 @@ function renderMarkdown(text: string | undefined): string {
       // 2. 处理分割线 (---)
       if (/^[-*_]{3,}$/.test(trimmedLine)) {
         closeLists(0);
-        html += '<hr style="border:none;border-top:1px solid #e6e5e6;margin:10px 0;" />';
+        html += '<hr class="md-hr" />';
         continue;
       }
 
@@ -205,7 +215,7 @@ function renderMarkdown(text: string | undefined): string {
         const currentLevel = indent === 0 ? 1 : 2;
 
         if (currentLevel > listStack.length) {
-          html += '<ul style="list-style-type: disc; padding-left: 20px;">';
+          html += '<ul class="md-list">';
           listStack.push(currentLevel);
         } else if (currentLevel < listStack.length) {
           closeLists(currentLevel);
@@ -234,7 +244,7 @@ function formatInline(text: string): string {
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // 加粗
     .replace(/\*(.*?)\*/g, '<em>$1</em>') // 斜体
     .replace(/`(.*?)`/g, '<code>$1</code>') // 代码
-    .replace(/【(.*?)】/g, '<span style="color:#1890ff;font-weight:bold;">【$1】</span>'); // 针对中文括号美化
+    .replace(/【(.*?)】/g, '<span class="md-bracket">【$1】</span>'); // 针对中文括号美化
 }
 
 function loadArchivedReport() {
@@ -560,5 +570,21 @@ const emit = defineEmits<{
   font-family: monospace;
   font-size: 13px;
   color: var(--text-regular);
+}
+
+:deep(.markdown-body) .md-hr {
+  border: none;
+  border-top: 1px solid #e6e5e6;
+  margin: 10px 0;
+}
+
+:deep(.markdown-body) .md-list {
+  list-style-type: disc;
+  padding-left: 20px;
+}
+
+:deep(.markdown-body) .md-bracket {
+  color: #1890ff;
+  font-weight: bold;
 }
 </style>
