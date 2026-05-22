@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import DatePicker from '@/components/DatePicker.vue';
-import { storage } from 'vokex.app';
+import { useProjects } from '@/composables/useProjects';
 import type { GitCommitLog } from '@/services/aiService';
 import { formatDate } from '@/utils';
+
+const { loadProjects, activeProjects } = useProjects();
 
 const loading = ref(false);
 
@@ -95,7 +97,7 @@ async function fetchGitLogsFromProjects(project: any[], targetDate: string): Pro
     return logs;
   };
 
-  const allLogsArrays = await Promise.all(project.filter(p => !p.isIgnored).map(n => fetchProjectLogs(n)));
+  const allLogsArrays = await Promise.all(project.map(n => fetchProjectLogs(n)));
 
   const allLogs = allLogsArrays.flat();
   console.log(`[获取提交] 总共获取到 ${allLogs.length} 条提交记录`);
@@ -137,13 +139,8 @@ function changeDate(days: number) {
 async function handleLoadGitLogs() {
   loading.value = true;
   try {
-    const STORAGE_KEY = 'git2report_projects';
-    const savedProjects = await storage.getData(STORAGE_KEY);
-    if (!savedProjects || !Array.isArray(savedProjects)) {
-      return;
-    };
-    const activeProject = savedProjects.filter((p: { isIgnored: boolean }) => !p.isIgnored);
-    await loadGitLogs(activeProject, selectedDate.value);
+    await loadProjects();
+    await loadGitLogs(activeProjects.value, selectedDate.value);
   } finally {
     loading.value = false;
   }
