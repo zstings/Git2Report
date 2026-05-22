@@ -22,18 +22,39 @@ function hasArchivedReport(date: string): boolean {
 async function fetchGitLogsFromProjects(project: any[], targetDate: string): Promise<GitCommitLog[]> {
   const { shell } = await import('vokex.app');
 
+  // 手动实现异步池，限制【项目级别】的并发
+  async function asyncPool(limit: number, array: any[], iteratorFn: (item: any) => Promise<any>) {
+    const ret = []; // 存储所有任务的 Promise
+    const executing: any[] = []; // 存储当前正在执行的任务
+
+    for (const item of array) {
+      // 调用 iteratorFn，并确保它完成后从 executing 队列中移除自己
+      const p = Promise.resolve().then(() => iteratorFn(item));
+      ret.push(p);
+
+      if (limit <= array.length) {
+        const e: any = p.finally(() => {
+          const index = executing.indexOf(e);
+          if (index > -1) executing.splice(index, 1);
+        });
+        executing.push(e);
+
+        // 如果当前执行中的任务数达到了限制，就等待其中最快的一个完成
+        if (executing.length >= limit) {
+          await Promise.race(executing);
+        }
+      }
+    }
+    return Promise.all(ret);
+  }
+
   const fetchProjectLogs = async (item: any): Promise<GitCommitLog[]> => {
     const normalizedPath = item.localPath.replace(/\\/g, '/');
-    const projectName = normalizedPath.split('/').pop() || normalizedPath.split('\\').pop() || '未知项目';
-    const logs: GitCommitLog[] = [];
-
+    const projectName = normalizedPath.split('/').pop() || '未知项目';
     const currentUserName = item.gitUsername;
+    if (!currentUserName) return [];
 
-    if (!currentUserName) {
-      console.log(`[获取提交] 无法获取当前项目的 Git 用户信息，跳过该项目`);
-      return logs;
-    }
-
+    // 获取日志元数据（不带 -p，保证响应极快且体积小）
     const gitLogArgs = [
       '-C',
       normalizedPath,
@@ -41,47 +62,39 @@ async function fetchGitLogsFromProjects(project: any[], targetDate: string): Pro
       '--all',
       '--no-merges',
       '--reverse',
-      `--since="${targetDate} 00:00:00"`,
-      `--until="${targetDate} 23:59:59"`,
-      '--pretty=format:%H|||%ai|||%an|||%ae|||%s|||%b[COMMIT_SEP]',
+      `--author=${currentUserName}`,
+      `--since=${targetDate} 00:00:00`,
+      `--until=${targetDate} 23:59:59`,
+      '--pretty=format:%H|||%ai|||%s|||%b[COMMIT_SEP]',
     ];
 
-    if (currentUserName) {
-      gitLogArgs.push(`--author=${currentUserName}`);
-    }
-
     const gitLogResult = await shell.exec('git', gitLogArgs);
-
-    if (!gitLogResult.success || !gitLogResult.stdout) {
-      console.log(`[获取提交] 项目 ${projectName} 没有获取到提交记录`);
-      return logs;
-    }
+    if (!gitLogResult.success || !gitLogResult.stdout) return [];
 
     const commits = gitLogResult.stdout.split('[COMMIT_SEP]').filter(c => c.trim());
+    const logs: GitCommitLog[] = [];
 
     for (const commit of commits) {
       const parts: any[] = commit.split('|||');
-      if (parts.length < 5) continue;
+      if (parts.length < 3) continue;
 
       const hash = parts[0].trim();
       const date = parts[1].trim();
-      const subject = parts[4].trim();
-      const body = parts.length > 5 ? parts[5].trim() : '';
+      const subject = parts[2].trim();
+      const body = parts[3]?.trim() || '';
 
-      let bodyClean = body.replace(/Signed-off-by:.*/g, '').trim();
-      bodyClean = bodyClean.replace(/[\n\r]+/g, ' ').trim();
-
-      let content = subject;
-      if (bodyClean) {
-        content = `${subject}(${bodyClean})`;
-      }
+      const bodyClean = body
+        .replace(/Signed-off-by:.*/g, '')
+        .replace(/[\n\r]+/g, ' ')
+        .trim();
+      const content = bodyClean ? `${subject}(${bodyClean})` : subject;
 
       let diff = '[已忽略]';
+      // 只有短提交才触发额外的 shell 调用
       if (content.length < 15) {
+        // 这里不需要再加并发控制，因为外部项目已经是并发的了
         const diffResult = await shell.exec('git', ['-C', normalizedPath, 'show', '--no-color', '--pretty=', '--patch-with-stat', hash]);
-        if (diffResult.success) {
-          diff = diffResult.stdout;
-        }
+        if (diffResult.success) diff = diffResult.stdout.trim();
       }
 
       logs.push({
@@ -91,17 +104,18 @@ async function fetchGitLogsFromProjects(project: any[], targetDate: string): Pro
         hash,
         date,
         content,
-        diff: diff.trim(),
+        diff,
       });
     }
-    console.log(logs, 'logs');
     return logs;
   };
 
-  const allLogsArrays = await Promise.all(project.map(n => fetchProjectLogs(n)));
+  // 这里的并发数很关键：
+  // 30 个项目，并发设为 5-6。
+  // 即使这 5 个项目同时在跑 git show，总进程数也在可控范围内。
+  const allLogsArrays = await asyncPool(6, project, fetchProjectLogs);
 
   const allLogs = allLogsArrays.flat();
-  console.log(`[获取提交] 总共获取到 ${allLogs.length} 条提交记录`);
   return allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
