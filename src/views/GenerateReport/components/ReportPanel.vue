@@ -704,7 +704,6 @@ const emit = defineEmits<{
 }
 
 :deep(.markdown-body) .md-bracket {
-  color: #1890ff;
   font-weight: bold;
   margin-bottom: 3px;
   display: block;
