@@ -20,7 +20,7 @@ export function useConfig() {
   async function loadConfig() {
     loading.value = true;
     try {
-      const savedData = await storage.getData(STORAGE_KEY);
+      const savedData = await storage.getItem(STORAGE_KEY);
       if (savedData) {
         config.value = { ...defaultConfig, ...savedData };
       }
@@ -35,7 +35,7 @@ export function useConfig() {
   async function saveConfig() {
     loading.value = true;
     try {
-      await storage.setData(STORAGE_KEY, config.value);
+      await storage.setItem(STORAGE_KEY, config.value);
     } catch (error) {
       console.error('保存配置失败:', error);
       throw error;

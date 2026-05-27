@@ -30,7 +30,7 @@ export function useProjects() {
   async function loadProjects() {
     loading.value = true;
     try {
-      const savedProjects = await storage.getData(STORAGE_KEY);
+      const savedProjects = await storage.getItem(STORAGE_KEY);
       if (savedProjects && Array.isArray(savedProjects)) {
         projects.value = savedProjects;
       }
@@ -43,7 +43,7 @@ export function useProjects() {
 
   async function saveProjects() {
     try {
-      await storage.setData(STORAGE_KEY, projects.value);
+      await storage.setItem(STORAGE_KEY, projects.value);
     } catch (error) {
       console.error('保存项目列表失败:', error);
     }

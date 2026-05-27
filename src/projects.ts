@@ -21,7 +21,7 @@ export const STORAGE_KEY = 'git2report_projects';
  */
 export async function loadProjects(cb: () => void) {
   try {
-    const savedProjects = await storage.getData(STORAGE_KEY);
+    const savedProjects = await storage.getItem(STORAGE_KEY);
     if (savedProjects && Array.isArray(savedProjects)) {
       savedProjects.forEach(project => {
         project.localPath = normalizePath(project.localPath);
@@ -38,7 +38,7 @@ export async function loadProjects(cb: () => void) {
  * 保存项目列表
  */
 export async function saveProjects() {
-  await storage.setData(STORAGE_KEY, projects.value);
+  await storage.setItem(STORAGE_KEY, projects.value);
 }
 
 /**
