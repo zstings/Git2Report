@@ -300,7 +300,7 @@ function renderMarkdown(text: string | undefined): string {
           listStack.push({ level: currentLevel, tag });
         } else if (currentLevel < listStack.length) {
           closeLists(currentLevel);
-        } else if (listStack.length > 0 && listStack[listStack.length - 1].tag !== tag) {
+        } else if (listStack.length > 0 && listStack?.[listStack.length - 1]?.tag !== tag) {
           // 同级但列表类型切换（ul ↔ ol），关闭旧的再开新的
           closeLists(currentLevel - 1);
           html += `<${tag} class="${listClass}">`;
