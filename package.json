@@ -1,6 +1,6 @@
 {
   "name": "git2report",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -35,5 +35,5 @@
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
-  "releaseNotes": "新增下载镜像配置功能，支持自定义应用更新下载源\n重构 Markdown 列表渲染逻辑，修复嵌套列表解析异常\n优化详细要点输出格式，统一使用无序列表"
+  "releaseNotes": "新增「复制提示词」功能，支持将完整提示词复制到剪贴板，可粘贴到任意网页版 AI 使用\n重构提示词生成逻辑，提取为独立方法确保复制内容与实际请求一致\n修复 storage API 调用，统一使用正确的 getItem/setItem 方法"
 }
