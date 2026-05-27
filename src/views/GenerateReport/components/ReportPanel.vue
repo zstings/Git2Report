@@ -251,21 +251,18 @@ function renderMarkdown(text: string | undefined): string {
   try {
     const lines = text.split('\n');
     let html = '';
-    const listStack: number[] = []; // 记录当前缩进层级
+    const listStack: { level: number; tag: string }[] = []; // 记录当前缩进层级和列表类型
 
     const closeLists = (toLevel: number) => {
       while (listStack.length > toLevel) {
-        html += '</ul>';
-        listStack.pop();
+        const item = listStack.pop()!;
+        html += `</${item.tag}>`;
       }
     };
 
     for (const line of lines) {
       const trimmedLine = line.trim();
-      if (!trimmedLine) {
-        closeLists(0);
-        continue;
-      }
+      if (!trimmedLine) continue;
 
       // 1. 处理标题 (##### [项目A])
       if (/^#{1,6}\s/.test(trimmedLine)) {
@@ -300,9 +297,14 @@ function renderMarkdown(text: string | undefined): string {
 
         if (currentLevel > listStack.length) {
           html += `<${tag} class="${listClass}">`;
-          listStack.push(currentLevel);
+          listStack.push({ level: currentLevel, tag });
         } else if (currentLevel < listStack.length) {
           closeLists(currentLevel);
+        } else if (listStack.length > 0 && listStack[listStack.length - 1].tag !== tag) {
+          // 同级但列表类型切换（ul ↔ ol），关闭旧的再开新的
+          closeLists(currentLevel - 1);
+          html += `<${tag} class="${listClass}">`;
+          listStack.push({ level: currentLevel, tag });
         }
 
         html += `<li>${content}</li>`;
