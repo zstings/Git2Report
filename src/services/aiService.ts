@@ -252,7 +252,7 @@ export class AIService {
 
     let systemPrompt = todaySystemPrompt(config);
     if (enableDetailPoints) {
-      systemPrompt += `\n# 详细要点规则\n每项工作须在分类事项后用子列表列出具体改动点，说明带来的收益或目的。格式如下：\n  - **详细要点**：\n    1. 具体的改动点 A（说明带来的收益或目的）\n    2. 具体的改动点 B`;
+      systemPrompt += `\n# 详细要点规则\n每项工作须在分类事项后用子列表列出具体改动点，说明带来的收益或目的。必须使用 \`-\` 无序列表符号，禁止使用数字编号（如 1. 2. 3.）。格式如下：\n  - **详细要点**：\n    - 具体的改动点 A（说明带来的收益或目的）\n    - 具体的改动点 B`;
     }
 
     const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || '无'}`;
