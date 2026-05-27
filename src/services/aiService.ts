@@ -237,6 +237,43 @@ export class AIService {
   }
 
   /**
+   * 获取日报的完整提示词
+   * @param gitLogs - Git 提交日志
+   * @param userNotes - 用户补充内容
+   * @param enableDetailPoints - 是否启用详细要点
+   * @returns 包含 system 和 user 提示词的对象
+   */
+  getDailyReportPrompt(gitLogs: string, userNotes: string, enableDetailPoints: boolean): { system: string; user: string } {
+    const config = this.getActiveConfig();
+
+    let systemPrompt = todaySystemPrompt(config || { apiKey: '', model: '', baseUrl: '', systemPreference: '' });
+    if (enableDetailPoints) {
+      systemPrompt += `\n# 详细要点规则\n每项工作须在分类事项后用子列表列出具体改动点，说明带来的收益或目的。必须使用 \`-\` 无序列表符号，禁止使用数字编号（如 1. 2. 3.）。格式如下：\n  - **详细要点**：\n    - 具体的改动点 A（说明带来的收益或目的）\n    - 具体的改动点 B`;
+    }
+
+    const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || '无'}`;
+
+    return { system: systemPrompt, user: userPrompt };
+  }
+
+  /**
+   * 获取周报/月报的完整提示词
+   * @param reportType - 报告类型
+   * @param dailyContent - 拼接好的多天日报内容
+   * @returns 包含 system 和 user 提示词的对象
+   */
+  getSummaryReportPrompt(reportType: 'weekly' | 'monthly', dailyContent: string): { system: string; user: string } {
+    const config = this.getActiveConfig();
+    const systemPrompt = reportType === 'weekly'
+      ? weeklySystemPrompt(config || { apiKey: '', model: '', baseUrl: '', systemPreference: '' })
+      : monthlySystemPrompt(config || { apiKey: '', model: '', baseUrl: '', systemPreference: '' });
+    const typeLabel = reportType === 'weekly' ? '周' : '月';
+    const userPrompt = `以下是各天的${typeLabel}报内容：\n${dailyContent}`;
+
+    return { system: systemPrompt, user: userPrompt };
+  }
+
+  /**
    * 生成日报
    * @param gitLogs - Git 提交日志
    * @param userNotes - 用户补充内容
@@ -250,12 +287,7 @@ export class AIService {
       throw new Error('请先配置 AI 服务');
     }
 
-    let systemPrompt = todaySystemPrompt(config);
-    if (enableDetailPoints) {
-      systemPrompt += `\n# 详细要点规则\n每项工作须在分类事项后用子列表列出具体改动点，说明带来的收益或目的。必须使用 \`-\` 无序列表符号，禁止使用数字编号（如 1. 2. 3.）。格式如下：\n  - **详细要点**：\n    - 具体的改动点 A（说明带来的收益或目的）\n    - 具体的改动点 B`;
-    }
-
-    const userPrompt = `Git 提交日志：\n${gitLogs}\n\n用户补充工作内容：\n${userNotes || '无'}`;
+    const { system: systemPrompt, user: userPrompt } = this.getDailyReportPrompt(gitLogs, userNotes, enableDetailPoints);
 
     try {
       const response = await http.fetch(`${config.baseUrl}/chat/completions`, {
@@ -312,9 +344,7 @@ export class AIService {
       throw new Error('请先配置 AI 服务');
     }
 
-    const systemPrompt = reportType === 'weekly' ? weeklySystemPrompt(config) : monthlySystemPrompt(config);
-    const typeLabel = reportType === 'weekly' ? '周' : '月';
-    const userPrompt = `以下是各天的${typeLabel}报内容：\n${dailyContent}`;
+    const { system: systemPrompt, user: userPrompt } = this.getSummaryReportPrompt(reportType, dailyContent);
 
     try {
       const response = await http.fetch(`${config.baseUrl}/chat/completions`, {
@@ -347,7 +377,7 @@ export class AIService {
         return data.choices[0].message.content;
       }
     } catch (error) {
-      console.error(`生成${typeLabel}报失败:`, error);
+      console.error(`生成${reportType === 'weekly' ? '周' : '月'}报失败:`, error);
       throw error;
     }
   }

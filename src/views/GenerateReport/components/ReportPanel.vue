@@ -6,6 +6,7 @@ import { useMessage } from '@/composables/useMessage';
 import { AIService } from '@/services/aiService';
 import type { GitCommitLog } from '@/services/aiService';
 import { formatDate } from '@/utils';
+import { clipboard } from 'vokex.app';
 
 const { success, error, warning, info } = useMessage();
 const { activeConfig, loadProfiles } = useAI();
@@ -245,6 +246,39 @@ async function handleSaveReport() {
   }
 }
 
+async function handleCopyPrompt() {
+  // 周报/月报
+  if (selectedReportType.value === 'weekly' || selectedReportType.value === 'monthly') {
+    const dates = getReportDateRange();
+    const dailyContent = collectDailyContent(dates);
+    if (!dailyContent) {
+      const typeLabel = selectedReportType.value === 'weekly' ? '周' : '月';
+      warning(`所选${typeLabel}期内没有日报存档，请先逐日生成并保存日报`);
+      return;
+    }
+    const { system, user } = aiService.getSummaryReportPrompt(selectedReportType.value, dailyContent);
+    await copyToClipboard(`【系统提示词】\n${system}\n\n---\n\n【用户提示词】\n${user}\n\n请使用 Markdown 格式返回，并用 4 个反引号包裹整个回复。`);
+    return;
+  }
+
+  // 日报
+  if (gitLogs.value.length === 0 && !userNotes.value.trim()) {
+    info('当日没有 Git 提交记录');
+    return;
+  }
+  const { system, user } = aiService.getDailyReportPrompt(gitLogsText.value, userNotes.value, enableDetailPoints.value);
+  await copyToClipboard(`【系统提示词】\n${system}\n\n---\n\n【用户提示词】\n${user}\n\n请使用 Markdown 格式返回，并用 4 个反引号包裹整个回复。`);
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await clipboard.writeText(text);
+    success('提示词已复制到剪贴板，可粘贴到任意 AI 对话中使用');
+  } catch (err) {
+    error(`复制失败: ${err}`);
+  }
+}
+
 function renderMarkdown(text: string | undefined): string {
   if (!text || typeof text !== 'string') return '';
 
@@ -386,10 +420,15 @@ const emit = defineEmits<{
       <button class="btn-icon" @click="emit('showAIConfig')" title="AI 配置">⚙️</button>
     </div>
 
-    <button class="generate-btn" @click="handleGenerateReport" :disabled="isGenerating">
-      <span v-if="isGenerating" class="spinner small"></span>
-      {{ isGenerating ? '生成中...' : '智能 AI 一键生成' }}
-    </button>
+    <div class="generate-actions">
+      <button class="generate-btn" @click="handleGenerateReport" :disabled="isGenerating">
+        <span v-if="isGenerating" class="spinner small"></span>
+        {{ isGenerating ? '生成中...' : '智能 AI 一键生成' }}
+      </button>
+      <button class="copy-prompt-btn" @click="handleCopyPrompt" title="复制提示词到剪贴板，可粘贴到任意 AI 对话中使用">
+        复制提示词
+      </button>
+    </div>
 
     <div class="view-tabs">
       <button class="view-tab" :class="{ active: viewMode === 'preview' }" @click="viewMode = 'preview'">预览</button>
@@ -516,9 +555,14 @@ const emit = defineEmits<{
   cursor: pointer;
 }
 
-.generate-btn {
-  width: calc(100% - 40px);
+.generate-actions {
+  display: flex;
+  gap: 12px;
   margin: 20px;
+}
+
+.generate-btn {
+  flex: 1;
   padding: 12px 24px;
   border: none;
   border-radius: var(--radius-md);
@@ -541,6 +585,25 @@ const emit = defineEmits<{
 .generate-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.copy-prompt-btn {
+  padding: 12px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text-regular);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.copy-prompt-btn:hover {
+  background: var(--bg-sidebar);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .view-tabs {
