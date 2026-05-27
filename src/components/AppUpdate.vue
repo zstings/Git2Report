@@ -3,7 +3,9 @@ import { onMounted, ref } from 'vue';
 import { version } from '../../package.json';
 import { http, shell, fs, path, app } from 'vokex.app';
 import { useMessage } from '@/composables/useMessage';
+import { useConfig } from '@/composables/useConfig';
 const { info, error, success } = useMessage();
+const { config, loadConfig, saveConfig } = useConfig();
 
 interface Release {
   tag_name: string;
@@ -91,27 +93,40 @@ async function downloadUpdate(): Promise<boolean> {
   isDownloading.value = true;
   try {
     const tempDir = await app.getPath('temp');
-    const downloadUrl = `${CONFIG.releaseDownloadUrl}/${latestVersion.value}/Git2Report.exe`;
+    const rawUrl = `${CONFIG.releaseDownloadUrl}/${latestVersion.value}/Git2Report.exe`;
     const savePath = await path.join(tempDir, `git2report_v${latestVersion.value}.exe`);
 
-    // 用 PowerShell 下载，自动处理 GitHub 302 重定向
-    const psCmd = `Invoke-WebRequest -Uri "${downloadUrl}" -OutFile "${savePath}" -UseBasicParsing`;
-    const result = await shell.exec('powershell', ['-NoProfile', '-Command', psCmd]);
+    // 构建下载地址列表：镜像优先，原始地址兜底
+    const mirror = config.value.mirrorUrl?.trim().replace(/\/+$/, '');
+    const urls = mirror ? [`${mirror}/${rawUrl}`, rawUrl] : [rawUrl];
 
-    if (!result.success) {
-      throw new Error(`下载失败: ${result.stderr || '未知错误'}`);
+    let lastError = '';
+    for (const url of urls) {
+      try {
+        const psCmd = `Invoke-WebRequest -Uri "${url}" -OutFile "${savePath}" -UseBasicParsing -TimeoutSec 30`;
+        const result = await shell.exec('powershell', ['-NoProfile', '-Command', psCmd]);
+
+        if (!result.success) {
+          lastError = result.stderr || '未知错误';
+          continue;
+        }
+
+        // 校验文件大小
+        const stat = await fs.stat(savePath);
+        if (stat.isFile && stat.size > 0) {
+          isUpdateReady.value = true;
+          success('更新已下载完成，点击"重启更新"完成安装');
+          return true;
+        }
+
+        await fs.rm(savePath, { force: true });
+        lastError = '下载文件无效（0字节）';
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+      }
     }
 
-    // 校验文件大小
-    const stat = await fs.stat(savePath);
-    if (!stat.isFile || stat.size === 0) {
-      await fs.rm(savePath, { force: true });
-      throw new Error('下载文件无效（0字节）');
-    }
-
-    isUpdateReady.value = true;
-    success('更新已下载完成，点击"重启更新"完成安装');
-    return true;
+    throw new Error(lastError || '所有下载源均失败');
   } catch (err) {
     error(`下载更新失败: ${err instanceof Error ? err.message : String(err)}`);
     return false;
@@ -167,7 +182,13 @@ async function handleUpdate() {
   }
 }
 
+async function saveMirrorUrl() {
+  await saveConfig();
+  info('镜像地址已保存');
+}
+
 onMounted(async () => {
+  await loadConfig();
   handleManualCheck(true);
 });
 </script>
@@ -198,6 +219,12 @@ onMounted(async () => {
           <div v-if="releaseNotes" class="release-notes">
             <h4>更新内容:</h4>
             <pre>{{ releaseNotes }}</pre>
+          </div>
+          <div class="mirror-setting">
+            <label>下载镜像（留空则直连 GitHub）:</label>
+            <div class="mirror-input-row">
+              <input v-model="config.mirrorUrl" type="text" placeholder="https://gh-proxy.com/" class="mirror-input" @blur="saveMirrorUrl" />
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -376,5 +403,39 @@ onMounted(async () => {
 .btn-update:hover {
   opacity: 0.9;
   transform: translateY(-1px);
+}
+
+.mirror-setting {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.mirror-setting label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.mirror-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mirror-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-main);
+  color: var(--text-regular);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.mirror-input:focus {
+  border-color: var(--color-primary);
 }
 </style>

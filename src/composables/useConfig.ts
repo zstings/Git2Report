@@ -3,10 +3,12 @@ import { storage } from 'vokex.app';
 
 export interface AppConfig {
   reportPath: string;
+  mirrorUrl: string;
 }
 
 const defaultConfig: AppConfig = {
   reportPath: '',
+  mirrorUrl: 'https://gh-proxy.com/',
 };
 
 const STORAGE_KEY = 'git2report_config';
