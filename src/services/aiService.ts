@@ -13,6 +13,8 @@ export interface AIConfig {
   model: string;
   /** 个人偏好设置 */
   systemPreference: string;
+  /** API 类型：chat 为 Chat Completions，responses 为 Responses API */
+  wireApi?: 'chat' | 'responses';
 }
 
 /**
@@ -274,6 +276,92 @@ export class AIService {
   }
 
   /**
+   * 调用 AI API（自动根据 wireApi 选择端点）
+   * @param config - AI 配置
+   * @param systemPrompt - 系统提示词
+   * @param userPrompt - 用户提示词
+   * @param onChunk - 流式回调
+   * @returns 生成的文本
+   */
+  private async callAPI(config: AIConfig, systemPrompt: string, userPrompt: string, onChunk?: (chunk: string) => void): Promise<string> {
+    if (config.wireApi === 'responses') {
+      return this.callResponsesAPI(config, systemPrompt, userPrompt, onChunk);
+    }
+    return this.callChatAPI(config, systemPrompt, userPrompt, onChunk);
+  }
+
+  /**
+   * 调用 Chat Completions API（/chat/completions）
+   */
+  private async callChatAPI(config: AIConfig, systemPrompt: string, userPrompt: string, onChunk?: (chunk: string) => void): Promise<string> {
+    const response = await http.fetch(`${config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      body: {
+        model: config.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        stream: !!onChunk,
+      },
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      stream: !!onChunk,
+      timeout: 300,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
+    }
+
+    if (onChunk) {
+      return this.parseChatSSEStream(response, onChunk);
+    }
+    const data = await response.json();
+    return data.choices[0].message.content;
+  }
+
+  /**
+   * 调用 Responses API（/responses）
+   */
+  private async callResponsesAPI(config: AIConfig, systemPrompt: string, userPrompt: string, onChunk?: (chunk: string) => void): Promise<string> {
+    const response = await http.fetch(`${config.baseUrl}/responses`, {
+      method: 'POST',
+      body: {
+        model: config.model,
+        instructions: systemPrompt,
+        input: userPrompt,
+        temperature: 0.7,
+        stream: !!onChunk,
+      },
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      stream: !!onChunk,
+      timeout: 300,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
+    }
+
+    if (onChunk) {
+      return this.parseResponsesSSEStream(response, onChunk);
+    }
+    const data = await response.json();
+    const textParts = data.output
+      ?.filter((item: { type: string }) => item.type === 'message')
+      .flatMap((item: { content: { type: string; text: string }[] }) =>
+        item.content.filter((c: { type: string }) => c.type === 'output_text').map((c: { text: string }) => c.text),
+      );
+    return textParts?.join('') || '';
+  }
+
+  /**
    * 生成日报
    * @param gitLogs - Git 提交日志
    * @param userNotes - 用户补充内容
@@ -290,41 +378,7 @@ export class AIService {
     const { system: systemPrompt, user: userPrompt } = this.getDailyReportPrompt(gitLogs, userNotes, enableDetailPoints);
 
     try {
-      const response = await http.fetch(`${config.baseUrl}/chat/completions`, {
-        method: 'POST',
-        body: {
-          model: config.model,
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt,
-            },
-            {
-              role: 'user',
-              content: userPrompt,
-            },
-          ],
-          temperature: 0.7,
-          stream: !!onChunk,
-        },
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-        },
-        stream: !!onChunk,
-        timeout: 300,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
-      }
-
-      if (onChunk) {
-        return this.parseSSEStream(response, onChunk);
-      } else {
-        const data = await response.json();
-        return data.choices[0].message.content;
-      }
+      return await this.callAPI(config, systemPrompt, userPrompt, onChunk);
     } catch (error) {
       console.error('生成日报失败:', error);
       throw error;
@@ -347,35 +401,7 @@ export class AIService {
     const { system: systemPrompt, user: userPrompt } = this.getSummaryReportPrompt(reportType, dailyContent);
 
     try {
-      const response = await http.fetch(`${config.baseUrl}/chat/completions`, {
-        method: 'POST',
-        body: {
-          model: config.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.7,
-          stream: !!onChunk,
-        },
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-        },
-        stream: !!onChunk,
-        timeout: 300,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
-      }
-
-      if (onChunk) {
-        return this.parseSSEStream(response, onChunk);
-      } else {
-        const data = await response.json();
-        return data.choices[0].message.content;
-      }
+      return await this.callAPI(config, systemPrompt, userPrompt, onChunk);
     } catch (error) {
       console.error(`生成${reportType === 'weekly' ? '周' : '月'}报失败:`, error);
       throw error;
@@ -383,12 +409,9 @@ export class AIService {
   }
 
   /**
-   * 解析 SSE 流式响应
-   * @param response - HTTP 响应对象
-   * @param onChunk - 片段回调函数
-   * @returns 完整文本内容
+   * 解析 Chat Completions SSE 流式响应
    */
-  private async parseSSEStream(response: Response, onChunk: (chunk: string) => void): Promise<string> {
+  private async parseChatSSEStream(response: Response, onChunk: (chunk: string) => void): Promise<string> {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
@@ -420,6 +443,54 @@ export class AIService {
               }
             } catch {
               console.warn('解析 SSE 数据失败');
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return fullText;
+  }
+
+  /**
+   * 解析 Responses API SSE 流式响应
+   */
+  private async parseResponsesSSEStream(response: Response, onChunk: (chunk: string) => void): Promise<string> {
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
+
+    if (!reader) {
+      throw new Error('无法获取响应流');
+    }
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          if (trimmed.startsWith('event: ')) continue;
+
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(trimmed.slice(6));
+              if (data.type === 'response.output_text.delta' && data.delta) {
+                fullText += data.delta;
+                onChunk(data.delta);
+              }
+            } catch {
+              console.warn('解析 Responses SSE 数据失败');
             }
           }
         }

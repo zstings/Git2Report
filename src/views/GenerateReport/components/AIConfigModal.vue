@@ -36,6 +36,8 @@ const newBaseUrl = ref('https://api.openai.com/v1');
 const newModel = ref('gpt-3.5-turbo');
 /** 新建配置 - 个人偏好 */
 const newSystemPreference = ref('');
+/** 新建配置 - API 类型 */
+const newWireApi = ref<'chat' | 'responses'>('chat');
 
 /** 编辑配置 - 配置名称 */
 const editProfileName = ref('');
@@ -47,6 +49,8 @@ const editBaseUrl = ref('');
 const editModel = ref('');
 /** 编辑配置 - 个人偏好 */
 const editSystemPreference = ref('');
+/** 编辑配置 - API 类型 */
+const editWireApi = ref<'chat' | 'responses'>('chat');
 
 watch(visible, async val => {
   if (val) {
@@ -67,6 +71,7 @@ function openAddForm() {
   newBaseUrl.value = 'https://api.openai.com/v1';
   newModel.value = 'gpt-3.5-turbo';
   newSystemPreference.value = '';
+  newWireApi.value = 'chat';
 }
 
 /**
@@ -89,6 +94,7 @@ async function handleAddProfile() {
       baseUrl: newBaseUrl.value.trim(),
       model: newModel.value.trim(),
       systemPreference: newSystemPreference.value.trim(),
+      wireApi: newWireApi.value,
     });
 
     success('配置添加成功');
@@ -111,6 +117,7 @@ function openEditForm(profile: AIProfile) {
   editBaseUrl.value = profile.config.baseUrl;
   editModel.value = profile.config.model;
   editSystemPreference.value = profile.config.systemPreference;
+  editWireApi.value = profile.config.wireApi || 'chat';
 }
 
 /**
@@ -137,6 +144,7 @@ async function handleUpdateProfile() {
         baseUrl: editBaseUrl.value.trim(),
         model: editModel.value.trim(),
         systemPreference: editSystemPreference.value.trim(),
+        wireApi: editWireApi.value,
       },
     });
 
@@ -255,6 +263,15 @@ function maskApiKey(key: string): string {
       </div>
 
       <div class="form-group">
+        <label>API 类型</label>
+        <select v-model="newWireApi" class="form-select">
+          <option value="chat">Chat Completions</option>
+          <option value="responses">Responses</option>
+        </select>
+        <p class="form-hint">如代理仅支持 Responses API，请选择 Responses</p>
+      </div>
+
+      <div class="form-group">
         <label>个人偏好（选填）</label>
         <AppTextarea v-model="newSystemPreference" placeholder="例如：输出简洁，按格式：进展/问题/规划" />
       </div>
@@ -287,6 +304,15 @@ function maskApiKey(key: string): string {
       <div class="form-group">
         <label>Model</label>
         <AppInput v-model="editModel" />
+      </div>
+
+      <div class="form-group">
+        <label>API 类型</label>
+        <select v-model="editWireApi" class="form-select">
+          <option value="chat">Chat Completions</option>
+          <option value="responses">Responses</option>
+        </select>
+        <p class="form-hint">如代理仅支持 Responses API，请选择 Responses</p>
       </div>
 
       <div class="form-group">
@@ -474,5 +500,28 @@ function maskApiKey(key: string): string {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-regular);
+}
+
+.form-select {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-main);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.form-select:focus {
+  border-color: var(--color-primary);
+}
+
+.form-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 </style>
