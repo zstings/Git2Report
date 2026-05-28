@@ -28,7 +28,6 @@ export function todaySystemPrompt(data: AIConfig) {
 # Style Example
 ### 【项目名称】
 - **分类标签**：对**核心点**进行了描述。
-------------------------------------------
 
 示例：
 ### 今日工作总结

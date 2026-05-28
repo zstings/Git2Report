@@ -266,9 +266,10 @@ export class AIService {
    */
   getSummaryReportPrompt(reportType: 'weekly' | 'monthly', dailyContent: string): { system: string; user: string } {
     const config = this.getActiveConfig();
-    const systemPrompt = reportType === 'weekly'
-      ? weeklySystemPrompt(config || { apiKey: '', model: '', baseUrl: '', systemPreference: '' })
-      : monthlySystemPrompt(config || { apiKey: '', model: '', baseUrl: '', systemPreference: '' });
+    const systemPrompt =
+      reportType === 'weekly'
+        ? weeklySystemPrompt(config || { apiKey: '', model: '', baseUrl: '', systemPreference: '' })
+        : monthlySystemPrompt(config || { apiKey: '', model: '', baseUrl: '', systemPreference: '' });
     const typeLabel = reportType === 'weekly' ? '周' : '月';
     const userPrompt = `以下是各天的${typeLabel}报内容：\n${dailyContent}`;
 

@@ -214,7 +214,7 @@ async function handleCopyReport() {
     (el as HTMLElement).style.cssText = 'list-style-type:disc;padding-left:20px;';
   });
   docx.querySelectorAll('.md-bracket').forEach(el => {
-    (el as HTMLElement).style.cssText = 'color:#1890ff;font-weight:bold;';
+    (el as HTMLElement).style.cssText = 'font-weight:bold;';
   });
   dom.appendChild(docx);
   selectElementText(docx);
@@ -425,9 +425,7 @@ const emit = defineEmits<{
         <span v-if="isGenerating" class="spinner small"></span>
         {{ isGenerating ? '生成中...' : '智能 AI 一键生成' }}
       </button>
-      <button class="copy-prompt-btn" @click="handleCopyPrompt" title="复制提示词到剪贴板，可粘贴到任意 AI 对话中使用">
-        复制提示词
-      </button>
+      <button class="copy-prompt-btn" @click="handleCopyPrompt" title="复制提示词到剪贴板，可粘贴到任意 AI 对话中使用">复制提示词</button>
     </div>
 
     <div class="view-tabs">
