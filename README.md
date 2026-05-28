@@ -190,6 +190,11 @@ diff_end
 
 ## 更新日志
 
+### v1.3.4
+
+- 新增 OpenAI Responses API 支持，AI 配置可切换 Chat Completions / Responses 两种 API 类型
+- 重构 AI 请求逻辑，统一调度 Chat 和 Responses 两种端点
+
 ### v1.3.3
 
 - 新增「复制提示词」功能，支持将完整提示词复制到剪贴板，可粘贴到任意网页版 AI 使用

@@ -35,5 +35,5 @@
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
-  "releaseNotes": "新增「复制提示词」功能，支持将完整提示词复制到剪贴板，可粘贴到任意网页版 AI 使用\n重构提示词生成逻辑，提取为独立方法确保复制内容与实际请求一致\n修复 storage API 调用，统一使用正确的 getItem/setItem 方法"
+  "releaseNotes": "新增 OpenAI Responses API 支持，AI 配置可切换 Chat Completions / Responses 两种 API 类型\n重构 AI 请求逻辑，统一调度 Chat 和 Responses 两种端点"
 }
