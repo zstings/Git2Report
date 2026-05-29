@@ -202,7 +202,7 @@ function maskApiKey(key: string): string {
 </script>
 
 <template>
-  <AppDialog v-model:visible="visible" title="AI 配置管理" width="480px" @close="closeModal">
+  <AppDialog v-model:visible="visible" title="AI 配置管理" width="480px" :close-on-overlay="false" @close="closeModal">
     <!-- 配置列表视图 -->
     <div v-if="!showAddForm && !showEditForm" class="profiles-section">
       <div class="section-header">
