@@ -190,6 +190,11 @@ diff_end
 
 ## 更新日志
 
+### v1.3.5
+
+- 优化日报「详细要点」提示词，增强对不同 AI 模型的兼容性（如小米 MiMo），确保详细要点输出稳定
+- 优化 AI 配置弹窗交互，禁用点击蒙层关闭，防止鼠标滑动选择内容时误关闭弹窗
+
 ### v1.3.4
 
 - 新增 OpenAI Responses API 支持，AI 配置可切换 Chat Completions / Responses 两种 API 类型
